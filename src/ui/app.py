@@ -67,8 +67,10 @@ class Backend:
 
 def main() -> None:
     backend = Backend()
-    window = webview.create_window("Chatbot", "ui.html", width=1024, height=768)
-    webview.start(gui="edgechromium", http_server=True, func=None, debug=False, js_api=backend)
+    window = webview.create_window(
+        "Chatbot", "ui.html", width=1024, height=768, js_api=backend
+    )
+    webview.start(gui="edgechromium", http_server=True, func=None, debug=False)
 
 
 if __name__ == "__main__":
