@@ -52,19 +52,20 @@
             display: flex;
             justify-content: center;
             align-items: center;
-            height: 100vh;
+            min-height: 100vh; /* height: 100vh 대신 min-height: 100vh 사용 */
         }
 
         .main-container {
             width: 100%;
             max-width: 1024px;
-            height: 100vh;
-            max-height: 100%;
+            height: auto; /* height: 100vh 대신 auto 사용 */
+            min-height: 100vh; /* 최소 높이를 뷰포트 높이로 설정하여 내용이 적을 때도 중앙 정렬 유지 */
             display: flex;
             flex-direction: column;
             background-color: var(--color-background-dark);
             border-left: 1px solid var(--color-background-medium);
             border-right: 1px solid var(--color-background-medium);
+            overflow-y: auto; /* 내용이 넘칠 경우 main-container 자체에 스크롤 생성 */
         }
         
         .tabs {
@@ -98,7 +99,6 @@
 
         .content-wrapper {
             flex-grow: 1;
-            overflow-y: auto;
             display: none;
             flex-direction: column;
         }
@@ -113,6 +113,7 @@
         #chatContent {
             height: 100%;
             justify-content: space-between;
+            overflow-y: auto; /* 채팅 내용은 여전히 내부 스크롤이 필요합니다. */
         }
 
         .chat-area {
@@ -124,7 +125,7 @@
         
         .message {
             display: flex;
-            margin-bottom: 16px;
+            margin-bottom: 10px;
             max-width: 80%;
             opacity: 0;
             transform: translateY(10px);
@@ -144,6 +145,7 @@
             position: relative;
             line-height: 1.6;
             box-shadow: var(--shadow-small);
+            word-break: break-word; /* 긴 텍스트가 컨테이너를 넘어가지 않도록 */
         }
         
         .message.user {
@@ -207,6 +209,7 @@
             background: var(--color-background-darkest);
             border-radius: var(--border-radius-large);
             padding: 4px;
+            height: 60px;
         }
 
         #messageInput {
@@ -220,6 +223,7 @@
             resize: none;
             height: 48px;
             overflow-y: hidden;
+            font-size: 14px;
         }
 
         .input-buttons button {
@@ -239,10 +243,12 @@
         #sendBtn {
             background-color: var(--color-accent-primary);
             color: var(--color-text-primary);
+            margin: 0 6px 0 0;
         }
         #sendBtn:hover {
             background-color: var(--color-accent-primary-hover);
             color: var(--color-text-primary);
+            margin: 0 6px 0 0;
         }
 
         /* =================================
@@ -253,15 +259,15 @@
             max-width: 900px;
             margin: 0 auto;
             width: 100%;
-            max-height: calc(100vh - 150px);
-            overflow-y: auto;
+            /* 수정된 스타일: 높이 제한 제거, 스크롤은 main-container에서 담당 */
             padding-bottom: 1rem;
+            flex-grow: 0; /* settingsContent가 유연하게 늘어나지 않도록 설정 */
+            flex-shrink: 0; /* settingsContent가 줄어들지 않도록 설정 */
         }
 
         .settings-header {
             margin-bottom: 24px;
         }
-        /* <<<<<<< [요청사항] 설정 탭 폰트 크기 축소 */
         .settings-header h2 { margin: 0; font-size: 1.6em; } 
         .settings-header p { color: var(--color-text-secondary); margin-top: 4px; font-size: 0.9em;}
         
@@ -283,13 +289,12 @@
             user-select: none;
         }
         
-        /* <<<<<<< [요청사항] 설정 탭 폰트 크기 축소 */
         .category-header h3 { margin: 0; font-size: 1.1em; font-weight: 600; }
         .category-header .chevron { transition: transform 0.3s ease; }
         .category-content.collapsed .chevron { transform: rotate(-90deg); }
 
         .category-content {
-            max-height: 2000px;
+            max-height: 2000px; /* 초기 상태를 충분히 크게 설정 */
             transition: max-height 0.4s ease-in-out, padding 0.4s ease-in-out;
             padding: 20px 24px; /* 패딩 축소 */
             border-top: 1px solid var(--color-background-medium);
@@ -314,7 +319,6 @@
             flex-direction: column;
         }
 
-        /* <<<<<<< [요청사항] 설정 탭 폰트 크기 축소 */
         .setting-item label {
             margin-bottom: 8px;
             font-weight: 500;
@@ -414,7 +418,7 @@
                         </div>
                     </div>
                 </div>
-            </div>
+                </div>
             <div class="input-area-wrapper">
                 <div class="input-area">
                     <textarea id="messageInput" placeholder="메시지를 입력하세요..." rows="1"></textarea>
@@ -570,8 +574,14 @@
             const tabs = document.querySelectorAll('.tab');
             const contents = document.querySelectorAll('.content-wrapper');
 
-            function showStatus(el, msg) {
+            function showStatus(el, msg, type = 'info') {
                 el.textContent = msg;
+                el.className = `status-message active ${type}`; // 타입 클래스 추가
+            }
+            
+            function clearStatus(el) {
+                el.className = `status-message`;
+                el.textContent = '';
             }
 
             function collect() {
@@ -593,10 +603,49 @@
             }
 
             function addMessage(text, sender) {
-                const div = document.createElement('div');
-                div.classList.add('message', sender);
-                div.textContent = text;
-                chatArea.appendChild(div);
+                const messageContainer = document.createElement('div');
+                messageContainer.classList.add('message', sender);
+
+                const messageContent = document.createElement('div');
+                messageContent.classList.add('message-content');
+                messageContent.textContent = text;
+
+                // 시간 스탬프 추가 (옵션)
+                const messageFooter = document.createElement('div');
+                messageFooter.classList.add('message-footer');
+                const timestampSpan = document.createElement('span');
+                timestampSpan.classList.add('timestamp');
+                timestampSpan.textContent = new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
+                messageFooter.appendChild(timestampSpan);
+                
+                // 봇 메시지에만 피드백 버튼 추가 (예시)
+                if (sender === 'bot') {
+                    const feedbackArea = document.createElement('div');
+                    feedbackArea.classList.add('feedback-area');
+                    feedbackArea.innerHTML = `
+                        <button class="feedback-btn like-btn" title="좋아요">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" stroke="none" class="w-6 h-6"><path d="M14.707 10.293a1 1 0 0 1 0 1.414l-4 4a1 1 0 0 1-1.414 0l-4-4a1 1 0 0 1 1.414-1.414L9 12.586V5a1 1 0 1 1 2 0v7.586l2.293-2.293a1 1 0 0 1 1.414 0z"></path></svg>
+                        </button>
+                        <button class="feedback-btn dislike-btn" title="싫어요">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" stroke="none" class="w-6 h-6"><path d="M9.293 13.707a1 1 0 0 1 0-1.414l4-4a1 1 0 0 1 1.414 0l4 4a1 1 0 0 1-1.414 1.414L15 11.414V19a1 1 0 1 1-2 0v-7.586l-2.293 2.293a1 1 0 0 1-1.414 0z"></path></svg>
+                        </button>
+                    `;
+                    messageFooter.appendChild(feedbackArea);
+
+                    // 피드백 버튼 이벤트 리스너 추가
+                    feedbackArea.querySelector('.like-btn').addEventListener('click', function() {
+                        this.classList.toggle('liked');
+                        this.closest('.feedback-area').querySelector('.dislike-btn').classList.remove('disliked');
+                    });
+                    feedbackArea.querySelector('.dislike-btn').addEventListener('click', function() {
+                        this.classList.toggle('disliked');
+                        this.closest('.feedback-area').querySelector('.like-btn').classList.remove('liked');
+                    });
+                }
+
+                messageContent.appendChild(messageFooter);
+                messageContainer.appendChild(messageContent);
+                chatArea.appendChild(messageContainer);
                 chatArea.scrollTop = chatArea.scrollHeight;
             }
 
@@ -605,11 +654,12 @@
                 update_config: () => Promise.resolve({}),
                 start_train: () => Promise.resolve(),
                 get_status: () => Promise.resolve({data: {message: 'idle'}}),
-                inference: () => Promise.resolve({data: {answer: ''}}),
+                inference: (msg) => Promise.resolve({data: {answer: `Echo: ${msg}`}}), // 기본 에코 응답
                 delete_model: () => Promise.resolve(),
                 get_dataset_info: () => Promise.resolve({data: {size: 0}})
             };
 
+            // 초기 설정 로드
             api.get_config().then(r => {
                 const cfg = r.data || {};
                 if ('num_epochs' in cfg) document.getElementById('epochInput').value = cfg.num_epochs;
@@ -630,15 +680,18 @@
                 }
             }).catch(err => console.error('get_config failed', err));
 
+            // 드롭아웃 슬라이더 값 업데이트
             document.getElementById("dropoutInput").addEventListener("input", function () {
-                document.getElementById("dropoutValue").textContent = this.value;
+                document.getElementById("dropoutValue").textContent = parseFloat(this.value).toFixed(2);
             });
 
+            // 메시지 입력창 높이 자동 조절
             messageInput.addEventListener('input', () => {
                 messageInput.style.height = 'auto';
                 messageInput.style.height = messageInput.scrollHeight + 'px';
             });
 
+            // Enter 키로 메시지 전송 (Shift + Enter는 줄바꿈)
             messageInput.addEventListener('keydown', e => {
                 if (e.key === 'Enter' && !e.shiftKey) {
                     e.preventDefault();
@@ -646,6 +699,7 @@
                 }
             });
 
+            // 탭 전환 로직
             tabs.forEach(tab => {
                 tab.addEventListener('click', () => {
                     tabs.forEach(t => t.classList.remove('active'));
@@ -656,50 +710,122 @@
                 });
             });
 
+            // 설정 카테고리 접기/펴기
+            document.querySelectorAll('.category-header').forEach(header => {
+                header.addEventListener('click', function() {
+                    const targetId = this.dataset.target;
+                    const content = document.querySelector(targetId);
+                    if (content) {
+                        content.classList.toggle('collapsed');
+                        this.querySelector('.chevron').classList.toggle('collapsed');
+                    }
+                });
+            });
+
+            // 모델 학습 시작 버튼
             trainBtn.addEventListener('click', () => {
                 const cfg = collect();
+                clearStatus(trainStatus);
+                clearStatus(deleteStatus);
                 api.update_config(cfg)
-                    .then(() => api.start_train('.'))
-                    .then(() => showStatus(trainStatus, 'training...'))
-                    .catch(err => console.error('train failed', err));
+                    .then(() => {
+                        showStatus(trainStatus, '모델 학습을 시작합니다...', 'info');
+                        return api.start_train('.');
+                    })
+                    .then(r => {
+                        showStatus(trainStatus, r.data.message || '모델 학습 완료!', 'success');
+                    })
+                    .catch(err => {
+                        showStatus(trainStatus, '모델 학습 실패: ' + (err.message || err), 'error');
+                        console.error('train failed', err);
+                    });
             });
 
+            // 설정 저장 버튼
             saveBtn.addEventListener('click', () => {
                 const cfg = collect();
+                clearStatus(trainStatus);
+                clearStatus(deleteStatus);
                 api.update_config(cfg)
-                    .then(() => showStatus(trainStatus, 'saved'))
-                    .catch(err => console.error('save failed', err));
+                    .then(() => showStatus(trainStatus, '설정이 저장되었습니다!', 'success'))
+                    .catch(err => {
+                        showStatus(trainStatus, '설정 저장 실패: ' + (err.message || err), 'error');
+                        console.error('save failed', err);
+                    });
             });
 
+            // 모델 파일 삭제 버튼
             deleteBtn.addEventListener('click', () => {
-                api.delete_model()
-                    .then(() => showStatus(deleteStatus, 'deleted'))
-                    .catch(err => showStatus(deleteStatus, 'error'));
+                clearStatus(trainStatus);
+                clearStatus(deleteStatus);
+                if (confirm('정말로 모델 파일을 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.')) {
+                    api.delete_model()
+                        .then(r => showStatus(deleteStatus, r.data.message || '모델 파일이 삭제되었습니다.', 'success'))
+                        .catch(err => showStatus(deleteStatus, '모델 파일 삭제 실패: ' + (err.message || err), 'error'));
+                }
             });
 
+            // 데이터셋 정보 로드
             api.get_dataset_info('.')
-                .then(r => showStatus(datasetInfo, 'size: ' + r.data.size))
-                .catch(err => console.error('info failed', err));
+                .then(r => showStatus(datasetInfo, `데이터셋 크기: ${r.data.size} 문장`, 'info'))
+                .catch(err => showStatus(datasetInfo, '데이터셋 정보 로드 실패: ' + (err.message || err), 'error'));
 
+
+            // 메시지 전송 버튼
             sendBtn.addEventListener('click', () => {
                 const msg = messageInput.value.trim();
                 if (!msg) return;
                 addMessage(msg, 'user');
                 messageInput.value = '';
-                messageInput.style.height = '48px';
+                messageInput.style.height = '48px'; // 높이 초기화
                 messageInput.focus();
+
+                // 봇 응답 대기 중 UI 업데이트 (선택 사항)
+                // addMessage('...', 'bot'); // 로딩 메시지 등
+
                 api.inference(msg)
-                    .then(r => addMessage(r.data.answer, 'bot'))
-                    .catch(err => addMessage('error: ' + err, 'bot'));
+                    .then(r => {
+                        // 마지막 메시지가 로딩 메시지였다면 제거
+                        // if (chatArea.lastChild && chatArea.lastChild.textContent === '...') {
+                        //     chatArea.removeChild(chatArea.lastChild);
+                        // }
+                        addMessage(r.data.answer, 'bot');
+                    })
+                    .catch(err => {
+                        // if (chatArea.lastChild && chatArea.lastChild.textContent === '...') {
+                        //     chatArea.removeChild(chatArea.lastChild);
+                        // }
+                        addMessage('오류 발생: ' + (err.message || err), 'bot');
+                        console.error('inference failed', err);
+                    });
             });
 
+            // 시스템 상태 폴링
             setInterval(() => {
                 api.get_status()
                     .then(r => {
-                        showStatus(trainStatus, r.data.message);
+                        // CPU 및 GPU 상태 업데이트 (예시 데이터)
+                        cpuStatus.textContent = r.data.cpu_usage ? `${r.data.cpu_usage.toFixed(1)}%` : 'N/A';
+                        gpuStatus.textContent = r.data.gpu_usage ? `${r.data.gpu_usage.toFixed(1)}%` : 'N/A';
+
+                        // 학습 상태 메시지 업데이트
+                        if (r.data.message && r.data.message !== 'idle') {
+                            showStatus(trainStatus, r.data.message, 'info');
+                        } else if (trainStatus.textContent.includes('학습을 시작합니다...')) {
+                            // 학습 시작 메시지가 남아있다면, 학습 완료 또는 유휴 상태로 변경
+                            showStatus(trainStatus, '모델 유휴 상태.', 'info');
+                        } else if (!trainStatus.textContent) {
+                            // 메시지가 없을 때 기본 유휴 상태 표시
+                            showStatus(trainStatus, '모델 유휴 상태.', 'info');
+                        }
                     })
-                    .catch(err => console.error('status failed', err));
-            }, 3000);
+                    .catch(err => {
+                        console.error('Status check failed:', err);
+                        cpuStatus.textContent = '오류';
+                        gpuStatus.textContent = '오류';
+                        // showStatus(trainStatus, '상태 확인 오류', 'error'); // 너무 자주 표시될 수 있으므로 주석 처리
+                    });
+            }, 3000); // 3초마다 업데이트
         });
     </script>
 </body>
