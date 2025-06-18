@@ -1,0 +1,762 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>챗봇 UI - New Project</title>
+    <style>
+        /* =================================
+           1. 디자인 시스템 (CSS 변수)
+           ================================= */
+        :root {
+            --font-family-sans: 'Inter', 'Pretendard', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+
+            --color-background-darkest: #111827;
+            --color-background-dark: #1F2937;
+            --color-background-medium: #374151;
+            --color-background-light: #4B5563;
+
+            --color-text-primary: #F9FAFB;
+            --color-text-secondary: #D1D5DB;
+            --color-text-muted: #9CA3AF;
+
+            --color-accent-primary: #3B82F6;
+            --color-accent-primary-hover: #2563EB;
+            --color-accent-secondary: #10B981;
+            --color-accent-secondary-hover: #059669;
+
+            --color-danger: #EF4444;
+            --color-danger-hover: #DC2626;
+            --color-warning: #F59E0B;
+            --color-info: #3B82F6;
+
+            --border-radius-small: 4px;
+            --border-radius-medium: 8px;
+            --border-radius-large: 16px;
+            --border-radius-full: 9999px;
+
+            --shadow-small: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+            --shadow-medium: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        }
+
+        /* =================================
+           2. 기본 및 레이아웃 스타일
+           ================================= */
+        * { box-sizing: border-box; }
+
+        body {
+            background-color: var(--color-background-darkest);
+            color: var(--color-text-primary);
+            font-family: var(--font-family-sans);
+            margin: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+
+        .main-container {
+            width: 100%;
+            max-width: 1024px;
+            height: 100vh;
+            max-height: 100%;
+            display: flex;
+            flex-direction: column;
+            background-color: var(--color-background-dark);
+            border-left: 1px solid var(--color-background-medium);
+            border-right: 1px solid var(--color-background-medium);
+        }
+        
+        .tabs {
+            display: flex;
+            background: var(--color-background-dark);
+            border-bottom: 1px solid var(--color-background-medium);
+            padding: 0 24px;
+            flex-shrink: 0;
+        }
+
+        .tab {
+            padding: 14px 20px;
+            cursor: pointer;
+            user-select: none;
+            font-size: 1em;
+            font-weight: 500;
+            color: var(--color-text-secondary);
+            border-bottom: 3px solid transparent;
+            transition: color 0.2s ease, border-color 0.2s ease;
+        }
+
+        .tab:hover {
+            color: var(--color-text-primary);
+        }
+
+        .tab.active {
+            color: var(--color-accent-primary);
+            border-bottom-color: var(--color-accent-primary);
+            font-weight: 600;
+        }
+
+        .content-wrapper {
+            flex-grow: 1;
+            overflow-y: auto;
+            display: none;
+            flex-direction: column;
+        }
+
+        .content-wrapper.active {
+            display: flex;
+        }
+        
+        /* =================================
+           3. 채팅창 스타일
+           ================================= */
+        #chatContent {
+            height: 100%;
+            justify-content: space-between;
+        }
+
+        .chat-area {
+            flex-grow: 1;
+            overflow-y: auto;
+            padding: 24px;
+            scroll-behavior: smooth;
+        }
+        
+        .message {
+            display: flex;
+            margin-bottom: 16px;
+            max-width: 80%;
+            opacity: 0;
+            transform: translateY(10px);
+            animation: fadeIn 0.3s ease-out forwards;
+        }
+
+        @keyframes fadeIn {
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        .message-content {
+            padding: 12px 16px;
+            border-radius: var(--border-radius-large);
+            position: relative;
+            line-height: 1.6;
+            box-shadow: var(--shadow-small);
+        }
+        
+        .message.user {
+            margin-left: auto;
+            flex-direction: row-reverse;
+        }
+        .message.user .message-content {
+            background: var(--color-accent-primary);
+            color: var(--color-text-primary);
+            border-bottom-right-radius: var(--border-radius-small);
+        }
+
+        .message.bot {
+            margin-right: auto;
+        }
+        .message.bot .message-content {
+            background: var(--color-background-medium);
+            color: var(--color-text-primary);
+            border-bottom-left-radius: var(--border-radius-small);
+        }
+        
+        .message-footer {
+            font-size: 0.75em;
+            color: var(--color-text-muted);
+            margin-top: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .message.user .message-footer { color: rgba(255, 255, 255, 0.7); }
+
+        .elapsed { font-size: 0.9em; }
+
+        .feedback-area {
+            display: inline-flex;
+            gap: 8px;
+            margin-left: 12px;
+        }
+
+        .feedback-btn {
+            background: none; border: none; cursor: pointer; padding: 0;
+            color: var(--color-text-muted);
+            transition: color 0.2s, transform 0.2s;
+        }
+        .feedback-btn:hover { color: var(--color-text-primary); transform: scale(1.1); }
+        .feedback-btn.liked { color: var(--color-accent-secondary); }
+        .feedback-btn.disliked { color: var(--color-danger); }
+        .feedback-btn svg { width: 20px; height: 20px; fill: currentColor; }
+
+        .input-area-wrapper {
+            padding: 16px 24px;
+            border-top: 1px solid var(--color-background-medium);
+            background-color: var(--color-background-dark);
+            flex-shrink: 0;
+        }
+
+        .input-area {
+            display: flex;
+            align-items: center;
+            background: var(--color-background-darkest);
+            border-radius: var(--border-radius-large);
+            padding: 4px;
+        }
+
+        #messageInput {
+            flex-grow: 1;
+            padding: 12px 16px;
+            border: none;
+            background: transparent;
+            color: var(--color-text-primary);
+            font-size: 1em;
+            outline: none;
+            resize: none;
+            height: 48px;
+        }
+
+        .input-buttons button {
+            background: none;
+            border: none;
+            padding: 8px;
+            cursor: pointer;
+            color: var(--color-text-muted);
+            border-radius: var(--border-radius-medium);
+            transition: background-color 0.2s, color 0.2s;
+        }
+        .input-buttons button:hover {
+            background-color: var(--color-background-medium);
+            color: var(--color-text-primary);
+        }
+        .input-buttons button svg { width: 24px; height: 24px; vertical-align: middle; }
+        #sendBtn {
+            background-color: var(--color-accent-primary);
+            color: var(--color-text-primary);
+        }
+        #sendBtn:hover {
+            background-color: var(--color-accent-primary-hover);
+            color: var(--color-text-primary);
+        }
+
+        /* =================================
+           4. 설정 탭 스타일 (확장성 중심)
+           ================================= */
+        #settingsContent {
+            padding: 24px 32px;
+            max-width: 900px;
+            margin: 0 auto;
+            width: 100%;
+        }
+
+        .settings-header {
+            margin-bottom: 24px;
+        }
+        /* <<<<<<< [요청사항] 설정 탭 폰트 크기 축소 */
+        .settings-header h2 { margin: 0; font-size: 1.6em; } 
+        .settings-header p { color: var(--color-text-secondary); margin-top: 4px; font-size: 0.9em;}
+        
+        .settings-category {
+            background-color: var(--color-background-dark);
+            border: 1px solid var(--color-background-medium);
+            border-radius: var(--border-radius-large);
+            margin-bottom: 20px; /* 간격 축소 */
+            overflow: hidden;
+            box-shadow: var(--shadow-medium);
+        }
+
+        .category-header {
+            padding: 16px 24px;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            user-select: none;
+        }
+        
+        /* <<<<<<< [요청사항] 설정 탭 폰트 크기 축소 */
+        .category-header h3 { margin: 0; font-size: 1.1em; font-weight: 600; }
+        .category-header .chevron { transition: transform 0.3s ease; }
+        .category-content.collapsed .chevron { transform: rotate(-90deg); }
+
+        .category-content {
+            max-height: 2000px;
+            transition: max-height 0.4s ease-in-out, padding 0.4s ease-in-out;
+            padding: 20px 24px; /* 패딩 축소 */
+            border-top: 1px solid var(--color-background-medium);
+        }
+
+        .category-content.collapsed {
+            max-height: 0;
+            padding-top: 0;
+            padding-bottom: 0;
+            overflow: hidden;
+            border-top: none;
+        }
+
+        .settings-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 20px; /* 간격 축소 */
+        }
+
+        .setting-item {
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* <<<<<<< [요청사항] 설정 탭 폰트 크기 축소 */
+        .setting-item label {
+            margin-bottom: 8px;
+            font-weight: 500;
+            color: var(--color-text-secondary);
+            font-size: 0.85em;
+        }
+
+        .setting-item input, .setting-item select {
+            width: 100%;
+            padding: 10px 12px;
+            border-radius: var(--border-radius-medium);
+            border: 1px solid var(--color-background-medium);
+            background: var(--color-background-darkest);
+            color: var(--color-text-primary);
+            font-size: 0.9em; /* 폰트 크기 축소 */
+            outline-offset: 2px;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+        .setting-item input:focus, .setting-item select:focus {
+            outline: 2px solid var(--color-accent-primary);
+            border-color: var(--color-accent-primary);
+        }
+
+        .slider-group { display: flex; align-items: center; gap: 16px; }
+        .slider-group input[type="range"] {
+            flex-grow: 1; padding: 0; height: 8px; -webkit-appearance: none; appearance: none;
+            background-color: var(--color-background-light); border-radius: var(--border-radius-full);
+            cursor: pointer;
+        }
+        .slider-group input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none; appearance: none; width: 20px; height: 20px;
+            border-radius: 50%; background: var(--color-accent-primary);
+        }
+        .slider-group input[type="range"]::-moz-range-thumb {
+            width: 20px; height: 20px; border-radius: 50%; background: var(--color-accent-primary);
+        }
+        .range-value { font-size: 0.9em; font-weight: 500; min-width: 40px; text-align: right; }
+        .warning { display: block; margin-top: 6px; font-size: 0.75em; color: var(--color-warning); } /* 폰트 크기 축소 */
+
+        .action-buttons {
+            margin-top: 32px; padding-top: 24px; display: flex; gap: 16px; flex-wrap: wrap;
+            border-top: 1px solid var(--color-background-medium);
+        }
+
+        .action-buttons button {
+            color: var(--color-text-primary); border: none; border-radius: var(--border-radius-medium);
+            padding: 12px 24px; cursor: pointer; font-size: 0.95em; font-weight: 600; /* 폰트 크기 축소 */
+            transition: background-color 0.2s ease, transform 0.1s ease;
+        }
+        .action-buttons button:hover { transform: translateY(-2px); }
+        .action-buttons button#trainBtn { background-color: var(--color-accent-secondary); }
+        .action-buttons button#trainBtn:hover { background-color: var(--color-accent-secondary-hover); }
+        .action-buttons button.delete-btn { background-color: var(--color-danger); }
+        .action-buttons button.delete-btn:hover { background-color: var(--color-danger-hover); }
+
+        .status-message {
+            margin-top: 16px; padding: 12px; border-radius: var(--border-radius-medium);
+            font-size: 0.9em; border: 1px solid transparent; display: none;
+        }
+        .status-message.active { display: block; }
+        .status-message.info { background: rgba(59, 130, 246, 0.1); color: #93C5FD; border-color: rgba(59, 130, 246, 0.3); }
+        .status-message.success { background: rgba(16, 185, 129, 0.1); color: #6EE7B7; border-color: rgba(16, 185, 129, 0.3); }
+        .status-message.error { background: rgba(239, 68, 68, 0.1); color: #FCA5A5; border-color: rgba(239, 68, 68, 0.3); }
+
+        .system-status {
+            margin-top: 32px; background: var(--color-background-dark); padding: 16px 24px;
+            border-radius: var(--border-radius-large); font-size: 0.9em; /* 폰트 크기 축소 */
+        }
+        .system-status h4 { margin: 0 0 12px 0; font-size: 1.1em; color: var(--color-text-primary); }
+        .system-status div { display: flex; justify-content: space-between; margin-bottom: 8px; color: var(--color-text-secondary); }
+        .system-status strong { color: var(--color-text-primary); font-weight: 600; }
+    </style>
+</head>
+<body>
+
+    <main class="main-container">
+        <div class="tabs">
+            <div class="tab active" data-tab="chat">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: bottom; margin-right: 8px;"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+                챗봇 대화
+            </div>
+            <div class="tab" data-tab="settings">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: bottom; margin-right: 8px;"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 0 2.4l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.38a2 2 0 0 0-.73-2.73l-.15-.09a2 2 0 0 1 0-2.4l.15-.1a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+                설정 및 학습
+            </div>
+        </div>
+
+        <div id="chatContent" class="content-wrapper active">
+            <div class="chat-area" id="chatArea">
+                <div class="message bot">
+                    <div class="message-content">
+                        안녕~ 내 도움이 필요해?
+                        <div class="message-footer">
+                            <span class="timestamp"></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="input-area-wrapper">
+                <div class="input-area">
+                    <textarea id="messageInput" placeholder="메시지를 입력하세요..." rows="1"></textarea>
+                    <div class="input-buttons">
+                        <button id="attachBtn" title="파일 첨부 (기능 확장용)">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"></path></svg>
+                        </button>
+                        <button id="sendBtn" title="전송">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="settingsContent" class="content-wrapper">
+            <div class="settings-header">
+                <h2>모델 설정 및 관리</h2>
+                <p>챗봇 모델의 학습 파라미터와 동작을 제어합니다.</p>
+            </div>
+
+            <div class="settings-category">
+                <div class="category-header" data-toggle="collapse" data-target="#training-settings">
+                    <h3>기본 학습 설정</h3>
+                    <div class="chevron"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg></div>
+                </div>
+                <div id="training-settings" class="category-content">
+                    <div class="settings-grid">
+                        <div class="setting-item">
+                            <label for="modelType">모델 타입</label>
+                            <select id="modelType">
+                                <option value="transformer_base">Transformer Base (권장)</option>
+                                <option value="transformer_large">Transformer Large</option>
+                                <option value="custom">Custom (직접 설정)</option>
+                            </select>
+                        </div>
+                        <div class="setting-item">
+                            <label for="epochInput">학습 에폭 수</label>
+                            <input type="number" id="epochInput" min="1" max="1000" value="20" />
+                        </div>
+                        <div class="setting-item">
+                            <label for="batchInput">배치 크기</label>
+                            <input type="number" id="batchInput" min="8" max="12" value="8" />
+                            <small class="warning">메모리 부족(OOM) 시 값을 줄이세요.</small>
+                        </div>
+                        <div class="setting-item">
+                            <label for="lrInput">학습률</label>
+                            <input type="number" id="lrInput" step="0.00001" min="0.000001" max="0.01" value="0.0001" />
+                        </div>
+                        <div class="setting-item">
+                            <label for="warmupStepsInput">웜업 스텝</label>
+                            <input type="number" id="warmupStepsInput" min="0" max="10000" value="1000" />
+                        </div>
+                        <div class="setting-item">
+                            <label for="maxSeqLenInput">최대 시퀀스 길이</label>
+                            <input type="number" id="maxSeqLenInput" min="32" max="512" step="16" value="128" />
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="settings-category">
+                <div class="category-header" data-toggle="collapse" data-target="#architecture-settings">
+                    <h3>모델 아키텍처</h3>
+                    <div class="chevron"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg></div>
+                </div>
+                <div id="architecture-settings" class="category-content collapsed">
+                    <div class="settings-grid">
+                        <div class="setting-item">
+                            <label for="hiddenDimInput">모델 차원 (d_model)</label>
+                            <input type="number" id="hiddenDimInput" min="128" max="1024" step="64" value="256" />
+                        </div>
+                        <div class="setting-item">
+                            <label for="ffDimInput">피드포워드 신경망 차원 (d_ff)</label>
+                            <input type="number" id="ffDimInput" min="512" max="4096" step="128" value="1024" />
+                        </div>
+                        <div class="setting-item">
+                            <label for="numEncoderLayersInput">인코더 레이어 수</label>
+                            <input type="number" id="numEncoderLayersInput" min="1" max="12" value="8" />
+                        </div>
+                        <div class="setting-item">
+                            <label for="numDecoderLayersInput">디코더 레이어 수</label>
+                            <input type="number" id="numDecoderLayersInput" min="1" max="12" value="8" />
+                        </div>
+                         <div class="setting-item">
+                            <label for="numHeadsInput">어텐션 헤드 수</label>
+                            <input type="number" id="numHeadsInput" min="1" max="16" value="8" />
+                        </div>
+                        <div class="setting-item">
+                            <label for="dropoutInput">드롭아웃 비율</label>
+                            <div class="slider-group">
+                                <input type="range" id="dropoutInput" min="0.0" max="0.5" step="0.05" value="0.1" />
+                                <span class="range-value" id="dropoutValue">0.10</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="settings-category">
+                <div class="category-header" data-toggle="collapse" data-target="#inference-settings">
+                    <h3>답변 생성 설정</h3>
+                    <div class="chevron"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg></div>
+                </div>
+                <div id="inference-settings" class="category-content collapsed">
+                     <div class="settings-grid">
+                        <div class="setting-item">
+                            <label for="topkInput">Top-K 샘플링</label>
+                            <input type="number" id="topkInput" min="1" max="100" value="10" />
+                        </div>
+                        <div class="setting-item">
+                            <label for="tempInput">창의성 (Temperature)</label>
+                            <input type="number" id="tempInput" step="0.1" min="0.1" max="2.0" value="0.7" />
+                        </div>
+                     </div>
+                </div>
+            </div>
+
+            <div class="action-buttons">
+                <button id="trainBtn">모델 학습 시작</button>
+                <button id="deleteModelBtn" class="delete-btn">모델 파일 삭제</button>
+            </div>
+            
+            <div id="trainStatus" class="status-message"></div>
+            <div id="datasetInfo" class="status-message"></div>
+            <div id="deleteStatus" class="status-message"></div>
+
+            <div class="system-status">
+                <h4>시스템 리소스 사용률</h4>
+                <div>CPU: <strong id="cpuStatus">N/A</strong></div>
+                <div>GPU: <strong id="gpuStatus">N/A</strong></div>
+            </div>
+        </div>
+
+    </main>
+
+    <script>
+    document.addEventListener('DOMContentLoaded', () => {
+
+        // =================================
+        // UI 상호작용 스크립트
+        // =================================
+
+        // 탭 전환 기능
+        const tabs = document.querySelectorAll('.tab');
+        const contents = document.querySelectorAll('.content-wrapper');
+        tabs.forEach(tab => {
+            tab.addEventListener('click', () => {
+                tabs.forEach(t => t.classList.remove('active'));
+                contents.forEach(c => c.classList.remove('active'));
+                tab.classList.add('active');
+                document.getElementById(tab.dataset.tab + 'Content').classList.add('active');
+            });
+        });
+
+        // 설정 탭 아코디언 기능
+        document.querySelectorAll('.category-header').forEach(header => {
+            header.addEventListener('click', () => {
+                const content = document.getElementById(header.dataset.target);
+                content.classList.toggle('collapsed');
+            });
+        });
+        
+        // 드롭아웃 슬라이더 값 표시 업데이트
+        const dropoutInput = document.getElementById('dropoutInput');
+        const dropoutValue = document.getElementById('dropoutValue');
+        dropoutInput.addEventListener('input', (e) => {
+            dropoutValue.textContent = parseFloat(e.target.value).toFixed(2);
+        });
+        
+        // 입력창 자동 높이 조절
+        const messageInput = document.getElementById('messageInput');
+        messageInput.addEventListener('input', () => {
+            messageInput.style.height = 'auto';
+            messageInput.style.height = (messageInput.scrollHeight) + 'px';
+        });
+
+        // =================================
+        // 챗봇 핵심 로직 (pywebview 연동)
+        // =================================
+        const chatArea = document.getElementById('chatArea');
+        const sendBtn = document.getElementById('sendBtn');
+        const trainBtn = document.getElementById('trainBtn');
+        const deleteModelBtn = document.getElementById('deleteModelBtn');
+        
+        const trainStatus = document.getElementById('trainStatus');
+        const datasetInfo = document.getElementById('datasetInfo');
+        const deleteStatus = document.getElementById('deleteStatus');
+        const cpuStatus = document.getElementById('cpuStatus');
+        const gpuStatus = document.getElementById('gpuStatus');
+
+        // 메시지 추가 함수
+        function addMessage(text, sender, timeMs = null, isFeedback = false) {
+            const messageDiv = document.createElement('div');
+            messageDiv.classList.add('message', sender);
+            
+            const contentDiv = document.createElement('div');
+            contentDiv.classList.add('message-content');
+            
+            let escapedText = text.replace(/</g, "&lt;").replace(/>/g, "&gt;");
+            contentDiv.innerHTML = escapedText;
+
+            const footerDiv = document.createElement('div');
+            footerDiv.classList.add('message-footer');
+            
+            let timestamp = new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
+            
+            if (sender === 'bot') {
+                let footerHTML = `<span class="timestamp">${timestamp}</span>`;
+                if (timeMs !== null) {
+                    footerHTML += `<span class="elapsed">${timeMs}ms</span>`;
+                }
+
+                if (!isFeedback) {
+                     const feedbackArea = document.createElement('div');
+                     feedbackArea.classList.add('feedback-area');
+                     
+                     const likeBtn = document.createElement('button');
+                     likeBtn.classList.add('feedback-btn', 'like');
+                     likeBtn.title = '좋아요';
+                     likeBtn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.8-3.8a1 1 0 00-1.4-1.4l-3.1 3.1-1.6-1.6a1 1 0 00-1.4 0zM21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>';
+                     likeBtn.onclick = () => sendFeedback(text, true, false, likeBtn, dislikeBtn);
+
+                     const dislikeBtn = document.createElement('button');
+                     dislikeBtn.classList.add('feedback-btn', 'dislike');
+                     dislikeBtn.title = '싫어요';
+                     dislikeBtn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path fill-rule="evenodd" d="M12 2.25c-5.385 0-9.75 4.365-9.75 9.75s4.365 9.75 9.75 9.75 9.75-4.365 9.75-9.75S17.385 2.25 12 2.25zm-1.72 6.97a.75.75 0 10-1.06 1.06L10.94 12l-1.72 1.72a.75.75 0 101.06 1.06L12 13.06l1.72 1.72a.75.75 0 101.06-1.06L13.06 12l1.72-1.72a.75.75 0 10-1.06-1.06L12 10.94l-1.72-1.72z" clip-rule="evenodd" /></svg>';
+                     dislikeBtn.onclick = () => sendFeedback(text, false, true, likeBtn, dislikeBtn);
+
+                     footerDiv.innerHTML = footerHTML;
+                     footerDiv.appendChild(feedbackArea);
+                }
+            } else {
+                footerDiv.innerHTML = `<span class="timestamp">${timestamp}</span>`;
+            }
+            
+            contentDiv.appendChild(footerDiv);
+            messageDiv.appendChild(contentDiv);
+            chatArea.appendChild(messageDiv);
+            chatArea.scrollTop = chatArea.scrollHeight;
+        }
+
+        // 상태 메시지 표시 함수
+        function showStatus(element, message, type = 'info') {
+            if (!element || !message) return;
+            element.textContent = message;
+            element.className = 'status-message active ' + type;
+        }
+
+        // pywebview API 연동
+        // window.addEventListener('pywebviewready', () => {
+        //     // 초기 설정값 로드
+        //     window.pywebview.api.get_config_values().then(config => {
+        //         document.getElementById('epochInput').value = config.num_epochs;
+        //         document.getElementById('batchInput').value = config.batch_size;
+        //         document.getElementById('lrInput').value = config.learning_rate;
+        //         dropoutInput.value = config.dropout_ratio;
+        //         dropoutValue.textContent = config.dropout_ratio.toFixed(2);
+        //         document.getElementById('warmupStepsInput').value = config.warmup_steps;
+        //         document.getElementById('maxSeqLenInput').value = config.max_sequence_length;
+        //         document.getElementById('numHeadsInput').value = config.num_heads;
+        //         document.getElementById('numEncoderLayersInput').value = config.num_encoder_layers;
+        //         document.getElementById('numDecoderLayersInput').value = config.num_decoder_layers;
+        //         document.getElementById('hiddenDimInput').value = config.model_dim;
+        //         document.getElementById('ffDimInput').value = config.ff_dim;
+        //         document.getElementById('topkInput').value = config.top_k;
+        //         document.getElementById('tempInput').value = config.temperature;
+        //         document.getElementById('modelType').value = config.model_type || 'transformer_base';
+        //     }).catch(error => console.error("초기 설정값 로드 오류:", error));
+
+        //     // 시스템 리소스 주기적 업데이트
+        //     setInterval(() => {
+        //         window.pywebview.api.get_system_status().then(status => {
+        //             cpuStatus.textContent = `${status.cpu}%`;
+        //             gpuStatus.textContent = `${status.gpu}%`;
+        //         }).catch(error => console.error("시스템 상태 로드 오류:", error));
+        //     }, 3000);
+        // });
+        
+        // --- 더미 데이터와 함수 (pywebview 비활성 시 테스트용) ---
+        // (실제 환경에서는 이 부분을 주석 처리하고 위의 pywebview 코드를 활성화하세요)
+        
+        // <<<<<<< [요청사항] 초기 인사말 수정
+        // 기존의 여러 개 메시지를 하나로 통합하고 문구 변경
+        const initialMessageDiv = document.querySelector('.message.bot');
+        if (initialMessageDiv) {
+            initialMessageDiv.remove(); // 기존 메시지 삭제
+        }
+        addMessage("안녕~ 내 도움이 필요해?", 'bot'); 
+        
+        function sendMessage() {
+            const message = messageInput.value.trim();
+            if (!message) return;
+            addMessage(message, 'user');
+            messageInput.value = '';
+            messageInput.style.height = '48px';
+
+            setTimeout(() => {
+                const response = "이것은 백엔드 연동 없이 테스트를 위해 하드코딩된 답변입니다. 실제 환경에서는 pywebview API를 통해 모델의 답변을 받게 됩니다.";
+                addMessage(response, 'bot', Math.floor(Math.random() * 200) + 50);
+            }, 1000);
+        }
+        
+        sendBtn.onclick = sendMessage;
+        messageInput.addEventListener('keypress', (event) => {
+            if (event.key === "Enter" && !event.shiftKey) {
+                event.preventDefault();
+                sendMessage();
+            }
+        });
+
+        trainBtn.onclick = () => {
+             // UI에서 모든 파라미터 가져오기
+            const params = {
+                num_epochs: parseInt(document.getElementById('epochInput').value),
+                batch_size: parseInt(document.getElementById('batchInput').value),
+                learning_rate: parseFloat(document.getElementById('lrInput').value),
+                dropout_ratio: parseFloat(dropoutInput.value),
+                warmup_steps: parseInt(document.getElementById('warmupStepsInput').value),
+                max_sequence_length: parseInt(document.getElementById('maxSeqLenInput').value),
+                num_heads: parseInt(document.getElementById('numHeadsInput').value),
+                num_encoder_layers: parseInt(document.getElementById('numEncoderLayersInput').value),
+                num_decoder_layers: parseInt(document.getElementById('numDecoderLayersInput').value),
+                model_dim: parseInt(document.getElementById('hiddenDimInput').value),
+                ff_dim: parseInt(document.getElementById('ffDimInput').value),
+                top_k: parseInt(document.getElementById('topkInput').value),
+                temperature: parseFloat(document.getElementById('tempInput').value),
+                model_type: document.getElementById('modelType').value,
+            };
+            console.log("학습 파라미터:", params);
+            
+            showStatus(trainStatus, "모델 학습을 시작합니다... (테스트 모드)", "info");
+            showStatus(datasetInfo, "대화 데이터 1,234개를 불러왔습니다.", "info");
+
+            setTimeout(() => {
+                 showStatus(trainStatus, "모델 학습이 성공적으로 완료되었습니다.", "success");
+            }, 5000);
+        };
+
+        deleteModelBtn.onclick = () => {
+            showStatus(deleteStatus, "모델 파일을 삭제합니다... (테스트 모드)", "info");
+             setTimeout(() => {
+                 showStatus(deleteStatus, "모델 파일이 성공적으로 삭제되었습니다.", "success");
+            }, 2000);
+        }
+        // --- 더미 데이터 끝 ---
+
+    });
+    </script>
+</body>
+</html>
