@@ -39,6 +39,9 @@ Docker, WSL, 또는 기타 가상화 환경을 사용하지 마세요. 프로젝
 
     코드 수정/분할 시 import·참조 관계를 구조에 맞게 동기화.
     예외처리, 디버깅, 로깅, 테스트 코드 포함 필수.
+
+** 본지침은 사용자외에 절대 수정하지말것. (매우중요)
+
 **If any violation is found, immediately refactor and push again.**
 
 ## Environment Variables
