@@ -1,16 +1,1 @@
-__pycache__/
-*.pyc
-*.pyo
-.DS_Store
-.vscode/
-/logs/
-/models/
-/datas/
-!/logs/.gitkeep
-!/models/.gitkeep
-!/datas/.gitkeep
-*.ckpt
-*.pth
-env/
-.env
-*.whl
+
