@@ -253,6 +253,9 @@
             max-width: 900px;
             margin: 0 auto;
             width: 100%;
+            max-height: calc(100vh - 150px);
+            overflow-y: auto;
+            padding-bottom: 1rem;
         }
 
         .settings-header {
@@ -627,8 +630,8 @@
                 }
             }).catch(err => console.error('get_config failed', err));
 
-            dropoutInput.addEventListener('input', e => {
-                dropoutValue.textContent = parseFloat(e.target.value).toFixed(2);
+            document.getElementById("dropoutInput").addEventListener("input", function () {
+                document.getElementById("dropoutValue").textContent = this.value;
             });
 
             messageInput.addEventListener('input', () => {
@@ -691,9 +694,11 @@
             });
 
             setInterval(() => {
-                api.get_status().then(r => {
-                    showStatus(trainStatus, r.data.message);
-                });
+                api.get_status()
+                    .then(r => {
+                        showStatus(trainStatus, r.data.message);
+                    })
+                    .catch(err => console.error('status failed', err));
             }, 3000);
         });
     </script>
