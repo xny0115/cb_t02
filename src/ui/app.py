@@ -26,35 +26,57 @@ class Backend:
         self.is_training = False
         self.log = TrainingLog()
         self.status: str = "idle"
-
-    def get_config_values(self) -> Dict[str, int | float | str]:
-        return {
+        self.config: Dict[str, int | float | str] = {
             "num_epochs": 10,
             "batch_size": 32,
             "learning_rate": 1e-3,
             "dropout_ratio": 0.1,
         }
 
+    def get_config_values(self) -> Dict[str, int | float | str]:
+        return self.config
+
+    def update_config_values(self, config: Dict[str, int | float | str]) -> bool:
+        self.config.update(config)
+        return True
+
     def get_system_status(self) -> Dict[str, int]:
-        # Dummy values; real implementation would query psutil or pynvml
-        return {"cpu": 0, "gpu": 0}
+        try:
+            import psutil
+        except Exception:  # pragma: no cover - optional dependency
+            return {"cpu": 0, "gpu": 0}
+
+        cpu = int(psutil.cpu_percent())
+        gpu = 0
+        try:
+            import pynvml
+
+            pynvml.nvmlInit()
+            handle = pynvml.nvmlDeviceGetHandleByIndex(0)
+            mem = pynvml.nvmlDeviceGetMemoryInfo(handle)
+            gpu = int(mem.used / mem.total * 100)
+        except Exception:
+            pass
+        return {"cpu": cpu, "gpu": gpu}
 
     def start_training(self, data_path: str) -> bool:
         if self.is_training:
             return False
         self.is_training = True
         self.status = "running"
-        thread = threading.Thread(target=self._train, args=(data_path,), daemon=True)
+        thread = threading.Thread(
+            target=self._train, args=(data_path, self.config), daemon=True
+        )
         thread.start()
         return True
 
-    def _train(self, data_path: str) -> None:
+    def _train(self, data_path: str, config: Dict[str, int | float | str]) -> None:
         def cb(epoch: int, total: int, loss: float) -> None:
             self.log.add(f"Epoch {epoch}/{total}: loss={loss:.4f}")
 
         try:
             train_args = type("Args", (), {"data": data_path})
-            train(train_args, progress_cb=cb)
+            train(train_args, config=config, progress_cb=cb)
             self.status = "done"
         except Exception as exc:  # pragma: no cover - UI feedback only
             self.status = f"error: {exc}"

@@ -53,7 +53,7 @@ def collate_fn(batch):
     return qs, as_
 
 
-def train(args: argparse.Namespace, progress_cb=None) -> None:
+def train(args: argparse.Namespace, config: dict | None = None, progress_cb=None) -> None:
     """Train model using provided arguments.
 
     Parameters
@@ -68,6 +68,12 @@ def train(args: argparse.Namespace, progress_cb=None) -> None:
     ds = QADataset(data_path)
     tuner = AutoTuner(len(ds))
     params = tuner.suggest()
+    if config:
+        params.update({
+            "batch_size": config.get("batch_size", params["batch_size"]),
+            "learning_rate": config.get("learning_rate", params["learning_rate"]),
+            "epochs": config.get("num_epochs", params["epochs"]),
+        })
     vocab = build_vocab(ds)
     train_ds = QADatasetTorch(ds, vocab)
     loader = DataLoader(

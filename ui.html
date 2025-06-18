@@ -363,6 +363,8 @@
         .action-buttons button:hover { transform: translateY(-2px); }
         .action-buttons button#trainBtn { background-color: var(--color-accent-secondary); }
         .action-buttons button#trainBtn:hover { background-color: var(--color-accent-secondary-hover); }
+        .action-buttons button#saveSettingsBtn { background-color: var(--color-accent-primary); }
+        .action-buttons button#saveSettingsBtn:hover { background-color: var(--color-accent-primary-hover); }
         .action-buttons button.delete-btn { background-color: var(--color-danger); }
         .action-buttons button.delete-btn:hover { background-color: var(--color-danger-hover); }
 
@@ -528,6 +530,7 @@
             </div>
 
             <div class="action-buttons">
+                <button id="saveSettingsBtn">설정 저장</button>
                 <button id="trainBtn">모델 학습 시작</button>
                 <button id="deleteModelBtn" class="delete-btn">모델 파일 삭제</button>
             </div>
@@ -659,34 +662,43 @@
         }
 
         // pywebview API 연동
-        // window.addEventListener('pywebviewready', () => {
-        //     // 초기 설정값 로드
-        //     window.pywebview.api.get_config_values().then(config => {
-        //         document.getElementById('epochInput').value = config.num_epochs;
-        //         document.getElementById('batchInput').value = config.batch_size;
-        //         document.getElementById('lrInput').value = config.learning_rate;
-        //         dropoutInput.value = config.dropout_ratio;
-        //         dropoutValue.textContent = config.dropout_ratio.toFixed(2);
-        //         document.getElementById('warmupStepsInput').value = config.warmup_steps;
-        //         document.getElementById('maxSeqLenInput').value = config.max_sequence_length;
-        //         document.getElementById('numHeadsInput').value = config.num_heads;
-        //         document.getElementById('numEncoderLayersInput').value = config.num_encoder_layers;
-        //         document.getElementById('numDecoderLayersInput').value = config.num_decoder_layers;
-        //         document.getElementById('hiddenDimInput').value = config.model_dim;
-        //         document.getElementById('ffDimInput').value = config.ff_dim;
-        //         document.getElementById('topkInput').value = config.top_k;
-        //         document.getElementById('tempInput').value = config.temperature;
-        //         document.getElementById('modelType').value = config.model_type || 'transformer_base';
-        //     }).catch(error => console.error("초기 설정값 로드 오류:", error));
+        window.addEventListener('pywebviewready', () => {
+            // 초기 설정값 로드
+            window.pywebview.api.get_config_values().then(config => {
+                document.getElementById('epochInput').value = config.num_epochs;
+                document.getElementById('batchInput').value = config.batch_size;
+                document.getElementById('lrInput').value = config.learning_rate;
+                dropoutInput.value = config.dropout_ratio;
+                dropoutValue.textContent = config.dropout_ratio.toFixed(2);
+            }).catch(error => console.error("초기 설정값 로드 오류:", error));
 
-        //     // 시스템 리소스 주기적 업데이트
-        //     setInterval(() => {
-        //         window.pywebview.api.get_system_status().then(status => {
-        //             cpuStatus.textContent = `${status.cpu}%`;
-        //             gpuStatus.textContent = `${status.gpu}%`;
-        //         }).catch(error => console.error("시스템 상태 로드 오류:", error));
-        //     }, 3000);
-        // });
+            // 시스템 리소스 주기적 업데이트
+            setInterval(() => {
+                window.pywebview.api.get_system_status().then(status => {
+                    cpuStatus.textContent = `${status.cpu}%`;
+                    gpuStatus.textContent = `${status.gpu}%`;
+                }).catch(error => console.error("시스템 상태 로드 오류:", error));
+            }, 3000);
+        });
+
+        function collectSettings() {
+            return {
+                num_epochs: parseInt(document.getElementById('epochInput').value),
+                batch_size: parseInt(document.getElementById('batchInput').value),
+                learning_rate: parseFloat(document.getElementById('lrInput').value),
+                dropout_ratio: parseFloat(dropoutInput.value),
+                warmup_steps: parseInt(document.getElementById('warmupStepsInput').value),
+                max_sequence_length: parseInt(document.getElementById('maxSeqLenInput').value),
+                num_heads: parseInt(document.getElementById('numHeadsInput').value),
+                num_encoder_layers: parseInt(document.getElementById('numEncoderLayersInput').value),
+                num_decoder_layers: parseInt(document.getElementById('numDecoderLayersInput').value),
+                model_dim: parseInt(document.getElementById('hiddenDimInput').value),
+                ff_dim: parseInt(document.getElementById('ffDimInput').value),
+                top_k: parseInt(document.getElementById('topkInput').value),
+                temperature: parseFloat(document.getElementById('tempInput').value),
+                model_type: document.getElementById('modelType').value,
+            };
+        }
         
         // --- 더미 데이터와 함수 (pywebview 비활성 시 테스트용) ---
         // (실제 환경에서는 이 부분을 주석 처리하고 위의 pywebview 코드를 활성화하세요)
@@ -721,31 +733,35 @@
         });
 
         trainBtn.onclick = () => {
-             // UI에서 모든 파라미터 가져오기
-            const params = {
-                num_epochs: parseInt(document.getElementById('epochInput').value),
-                batch_size: parseInt(document.getElementById('batchInput').value),
-                learning_rate: parseFloat(document.getElementById('lrInput').value),
-                dropout_ratio: parseFloat(dropoutInput.value),
-                warmup_steps: parseInt(document.getElementById('warmupStepsInput').value),
-                max_sequence_length: parseInt(document.getElementById('maxSeqLenInput').value),
-                num_heads: parseInt(document.getElementById('numHeadsInput').value),
-                num_encoder_layers: parseInt(document.getElementById('numEncoderLayersInput').value),
-                num_decoder_layers: parseInt(document.getElementById('numDecoderLayersInput').value),
-                model_dim: parseInt(document.getElementById('hiddenDimInput').value),
-                ff_dim: parseInt(document.getElementById('ffDimInput').value),
-                top_k: parseInt(document.getElementById('topkInput').value),
-                temperature: parseFloat(document.getElementById('tempInput').value),
-                model_type: document.getElementById('modelType').value,
-            };
-            console.log("학습 파라미터:", params);
-            
-            showStatus(trainStatus, "모델 학습을 시작합니다... (테스트 모드)", "info");
-            showStatus(datasetInfo, "대화 데이터 1,234개를 불러왔습니다.", "info");
+            const params = collectSettings();
+            if (window.pywebview) {
+                window.pywebview.api.update_config_values(params)
+                    .then(() => window.pywebview.api.start_training('.'))
+                    .then(() => {
+                        showStatus(trainStatus, '모델 학습을 시작합니다...', 'info');
+                    })
+                    .catch(err => showStatus(trainStatus, '학습 시작 실패: ' + err, 'error'));
+            } else {
+                console.log('학습 파라미터:', params);
+                showStatus(trainStatus, '모델 학습을 시작합니다... (테스트 모드)', 'info');
+                showStatus(datasetInfo, '대화 데이터 1,234개를 불러왔습니다.', 'info');
+                setTimeout(() => {
+                    showStatus(trainStatus, '모델 학습이 성공적으로 완료되었습니다.', 'success');
+                }, 5000);
+            }
+        };
 
-            setTimeout(() => {
-                 showStatus(trainStatus, "모델 학습이 성공적으로 완료되었습니다.", "success");
-            }, 5000);
+        const saveBtn = document.getElementById('saveSettingsBtn');
+        saveBtn.onclick = () => {
+            const params = collectSettings();
+            if (window.pywebview) {
+                window.pywebview.api.update_config_values(params)
+                    .then(() => showStatus(trainStatus, '설정이 저장되었습니다.', 'success'))
+                    .catch(err => showStatus(trainStatus, '설정 저장 실패: ' + err, 'error'));
+            } else {
+                console.log('저장된 설정:', params);
+                showStatus(trainStatus, '설정이 저장되었습니다. (테스트 모드)', 'info');
+            }
         };
 
         deleteModelBtn.onclick = () => {
