@@ -23,6 +23,7 @@ env/
 
 # 캐시 파일
 *.cache/
+*.pt
 
 # 테스트 결과
 htmlcov/

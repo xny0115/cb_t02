@@ -1,9 +1,12 @@
 from __future__ import annotations
 
-"""Application entrypoint."""
+"""Application entrypoint for the local webview."""
 
-import uvicorn
+import webview
+
+from src.app import Backend
 
 
 if __name__ == "__main__":
-    uvicorn.run("src.app:app", host="0.0.0.0", port=8000)
+    webview.create_window("Chatbot", "ui.html", js_api=Backend())
+    webview.start()
