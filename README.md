@@ -41,3 +41,10 @@ Docker, WSL, 또는 기타 가상화 환경을 사용하지 마세요. 프로젝
     예외처리, 디버깅, 로깅, 테스트 코드 포함 필수.
 
 **If any violation is found, immediately refactor and push again.**
+
+## Environment Variables
+
+- `PYTHONIOENCODING` - default `utf-8`
+- `SOYNLP_DATA_DIR` - optional path for soynlp cache
+
+Use `scripts/start_dev.sh` to launch the API server during development.
