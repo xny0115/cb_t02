@@ -1,4 +1,4 @@
-# Developer Rules & Constraints for cb_t02 Project
+﻿# Developer Rules & Constraints for cb_t02 Project
 
 1. 모든 코드 파일은 200줄 이하로 유지해야 합니다. 200줄을 초과하면 책임 단위로 파일을 분할하세요.
 2. 각 함수는 100줄 이하로 유지해야 합니다. 필요하면 리팩토링하고 분할하세요.
