@@ -31,7 +31,8 @@ document.addEventListener('DOMContentLoaded', () => {
     chatArea.scrollTop = chatArea.scrollHeight;
   }
 
-  fetch('/config').then(r => r.json()).then(r => {
+  const api = window.pywebview ? window.pywebview.api : null;
+  api.get_config().then(r => {
     const cfg = r.data;
     document.getElementById('epochInput').value = cfg.num_epochs;
     document.getElementById('batchInput').value = cfg.batch_size;
@@ -46,15 +47,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
   trainBtn.addEventListener('click', () => {
     const cfg = collect();
-    fetch('/config', {method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(cfg)})
-      .then(() => fetch('/train', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({data_path: '.'})}))
+    api.update_config(cfg)
+      .then(() => api.start_train('.'))
       .then(() => showStatus(trainStatus, 'training...'));
   });
 
   saveBtn.addEventListener('click', () => {
     const cfg = collect();
-    fetch('/config', {method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(cfg)})
-      .then(() => showStatus(trainStatus, 'saved'));
+    api.update_config(cfg).then(() => showStatus(trainStatus, 'saved'));
   });
 
   sendBtn.addEventListener('click', () => {
@@ -62,13 +62,11 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!msg) return;
     addMessage(msg, 'user');
     messageInput.value = '';
-    fetch('/infer', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({question: msg})})
-      .then(r => r.json())
-      .then(r => addMessage(r.data.answer, 'bot'));
+    api.inference(msg).then(r => addMessage(r.data.answer, 'bot'));
   });
 
   setInterval(() => {
-    fetch('/status').then(r => r.json()).then(r => {
+    api.get_status().then(r => {
       showStatus(trainStatus, r.data.message);
     });
   }, 3000);
