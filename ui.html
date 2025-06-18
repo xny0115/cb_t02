@@ -561,6 +561,9 @@
             const gpuStatus = document.getElementById('gpuStatus');
             const dropoutInput = document.getElementById('dropoutInput');
             const dropoutValue = document.getElementById('dropoutValue');
+            const deleteBtn = document.getElementById('deleteModelBtn');
+            const deleteStatus = document.getElementById('deleteStatus');
+            const datasetInfo = document.getElementById('datasetInfo');
             const tabs = document.querySelectorAll('.tab');
             const contents = document.querySelectorAll('.content-wrapper');
 
@@ -599,7 +602,9 @@
                 update_config: () => Promise.resolve({}),
                 start_train: () => Promise.resolve(),
                 get_status: () => Promise.resolve({data: {message: 'idle'}}),
-                inference: () => Promise.resolve({data: {answer: ''}})
+                inference: () => Promise.resolve({data: {answer: ''}}),
+                delete_model: () => Promise.resolve(),
+                get_dataset_info: () => Promise.resolve({data: {size: 0}})
             };
 
             api.get_config().then(r => {
@@ -662,6 +667,16 @@
                     .then(() => showStatus(trainStatus, 'saved'))
                     .catch(err => console.error('save failed', err));
             });
+
+            deleteBtn.addEventListener('click', () => {
+                api.delete_model()
+                    .then(() => showStatus(deleteStatus, 'deleted'))
+                    .catch(err => showStatus(deleteStatus, 'error'));
+            });
+
+            api.get_dataset_info('.')
+                .then(r => showStatus(datasetInfo, 'size: ' + r.data.size))
+                .catch(err => console.error('info failed', err));
 
             sendBtn.addEventListener('click', () => {
                 const msg = messageInput.value.trim();
