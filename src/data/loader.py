@@ -23,29 +23,41 @@ class QAPair:
 
 
 class QADataset:
-    """Dataset loader for JSON QA pairs."""
+    """Dataset loader for JSON QA pairs.
+
+    This class accepts either a single JSON file or a directory containing
+    multiple JSON files. All files are merged into one dataset.
+    """
 
     def __init__(self, path: Path) -> None:
-        self.path = path
+        self.paths: List[Path] = []
+        if path.is_file():
+            self.paths = [path]
+        elif path.is_dir():
+            self.paths = sorted(path.glob("*.json"))
+        else:
+            raise FileNotFoundError(path)
+
         self.pairs: List[QAPair] = []
         self.load()
 
     def load(self) -> None:
-        if not self.path.exists():
-            raise FileNotFoundError(self.path)
-        with open(self.path, "r", encoding="utf-8") as f:
-            data = json.load(f)
-        for item in data:
-            self.pairs.append(
-                QAPair(
-                    question=item["question"]["text"],
-                    answer=item["answer"]["text"],
-                    tokens_q=item["question"].get("tokens", []),
-                    tokens_a=item["answer"].get("tokens", []),
-                    concepts=item.get("concepts", []),
-                    domain=item.get("domain", ""),
+        for file_path in self.paths:
+            if not file_path.exists():
+                raise FileNotFoundError(file_path)
+            with open(file_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            for item in data:
+                self.pairs.append(
+                    QAPair(
+                        question=item["question"]["text"],
+                        answer=item["answer"]["text"],
+                        tokens_q=item["question"].get("tokens", []),
+                        tokens_a=item["answer"].get("tokens", []),
+                        concepts=item.get("concepts", []),
+                        domain=item.get("domain", ""),
+                    )
                 )
-            )
         if len(self.pairs) < 100:
             print(
                 f"Warning: dataset has only {len(self.pairs)} pairs (<100)."

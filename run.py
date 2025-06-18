@@ -53,8 +53,18 @@ def collate_fn(batch):
     return qs, as_
 
 
-def train(args: argparse.Namespace) -> None:
-    data_path = Path("datas") / args.dataset
+def train(args: argparse.Namespace, progress_cb=None) -> None:
+    """Train model using provided arguments.
+
+    Parameters
+    ----------
+    args : argparse.Namespace
+        Parsed command line arguments.
+    progress_cb : callable, optional
+        Callback receiving (epoch, total_epochs, loss) for UI updates.
+    """
+
+    data_path = Path("datas") / args.data
     ds = QADataset(data_path)
     tuner = AutoTuner(len(ds))
     params = tuner.suggest()
@@ -87,7 +97,10 @@ def train(args: argparse.Namespace) -> None:
             loss.backward()
             optimizer.step()
             total_loss += loss.item()
-        print(f"Epoch {epoch+1}, Loss: {total_loss/len(loader):.4f}")
+        loss_value = total_loss / len(loader)
+        print(f"Epoch {epoch+1}, Loss: {loss_value:.4f}")
+        if progress_cb:
+            progress_cb(epoch + 1, params["epochs"], loss_value)
 
     save_path = Path("models") / "transformer.pt"
     save_path.parent.mkdir(parents=True, exist_ok=True)
@@ -97,7 +110,11 @@ def train(args: argparse.Namespace) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--dataset", default="qa_test_10.json", help="Dataset filename in datas/")
+    parser.add_argument(
+        "--data",
+        default=".",
+        help="Dataset path (file or directory) inside datas/",
+    )
     args = parser.parse_args()
     train(args)
 
