@@ -115,8 +115,19 @@ def main() -> None:
         default=".",
         help="Dataset path (file or directory) inside datas/",
     )
+    parser.add_argument(
+        "--cli",
+        action="store_true",
+        help="Run training in CLI mode without launching the web UI",
+    )
     args = parser.parse_args()
-    train(args)
+
+    if args.cli:
+        train(args)
+    else:
+        from src.ui.app import main as ui_main
+
+        ui_main()
 
 
 if __name__ == "__main__":
