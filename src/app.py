@@ -8,6 +8,7 @@ from typing import Any, Dict
 
 from .config import load_config, save_config
 from .training import train, infer
+from .data.loader import QADataset
 
 
 class Backend:
@@ -81,3 +82,20 @@ class Backend:
         except Exception as exc:  # pragma: no cover - high level
             return {"success": False, "data": None, "error": str(exc)}
         return {"success": True, "data": {"answer": answer}, "error": None}
+
+    def delete_model(self) -> Dict[str, Any]:
+        """Remove saved model file if present."""
+        path = Path("models") / "transformer.pt"
+        try:
+            path.unlink(missing_ok=True)
+        except Exception as exc:  # pragma: no cover - OS level errors
+            return {"success": False, "data": None, "error": str(exc)}
+        return {"success": True, "data": None, "error": None}
+
+    def get_dataset_info(self, data_path: str = ".") -> Dict[str, Any]:
+        """Return basic dataset statistics."""
+        try:
+            ds = QADataset(Path("datas") / data_path)
+        except Exception as exc:  # pragma: no cover - file errors
+            return {"success": False, "data": None, "error": str(exc)}
+        return {"success": True, "data": {"size": len(ds)}, "error": None}
