@@ -6,10 +6,15 @@ import json
 import logging
 import time
 import torch
-try: import psutil  # type: ignore
-except Exception: psutil = None
-try: import pynvml  # type: ignore
-except Exception: pynvml = None
+
+try:
+    import psutil  # type: ignore
+except Exception:
+    psutil = None
+try:
+    import pynvml  # type: ignore
+except Exception:
+    pynvml = None
 from ..config import CONFIG_PATH, load_config
 from .utils import to_config, _CFG_MAP
 from ..training import train
@@ -18,7 +23,10 @@ from ..utils.vocab import Tokenizer
 from ..data.loader import load_all
 from ..tuning.auto import suggest_config
 from .loader import load_model
+
 logger = logging.getLogger(__name__)
+
+
 class ChatbotService:
     def __init__(self) -> None:
         self._config = load_config()
@@ -30,12 +38,14 @@ class ChatbotService:
         self._last_loss = 0.0
         self._tokenizer: Tokenizer | None = None
         self._model = None
-        self._lock = Lock(); self._thread: Thread | None = None
+        self._lock = Lock()
+        self._thread: Thread | None = None
         self._dataset = load_all(Path("datas"))
         self.auto_tune()
         if self.model_exists:
             self._tokenizer, self._model = load_model(self.model_path)
         logger.info("Service initialized")
+
     def auto_tune(self) -> dict:  # pragma: no cover
         num_pairs = len(self._dataset)
         try:
@@ -49,6 +59,7 @@ class ChatbotService:
 
     def get_config(self) -> Dict[str, Any]:
         return self._config.copy()
+
     def update_config(self, cfg: Dict[str, Any]) -> Tuple[bool, str]:
         """Update config dict and persist with type casting."""
         try:
@@ -74,6 +85,7 @@ class ChatbotService:
         epochs = int(cfg.get("epochs", 20))
         logger.info("training epochs=%d", epochs)
         last = time.time()
+
         def progress(epoch: int, total: int, loss: float) -> None:
             nonlocal last
             with self._lock:
@@ -82,12 +94,43 @@ class ChatbotService:
                 self._last_loss = loss
             if time.time() - last >= 1:
                 last = time.time()
+
         device = "cuda" if torch.cuda.is_available() else "cpu"
         logger.info("Device selected: %s", device)
         log_gpu_memory()
+        meta_path = self.model_path.with_suffix(".meta.json")
+        start_ep = 0
+        if self.model_path.exists() and meta_path.exists():
+            try:
+                meta = json.load(open(meta_path))
+                start_ep = int(meta.get("epochs_done", 0))
+            except Exception:
+                start_ep = 0
+            logger.info("resume training from epoch %d", start_ep)
+            if start_ep >= epochs:
+                with self._lock:
+                    self.training = False
+                    self._status_msg = "already_trained"
+                    self._progress = 1.0
+                return
+        elif meta_path.exists() and not self.model_path.exists():
+            try:
+                meta_path.unlink()
+            except Exception:
+                pass
         try:
-            train(path, cfg, progress_cb=progress, model_path=self.model_path)
-            if not self.model_path.exists() or self.model_path.stat().st_size < 1_000_000:
+            train(
+                path,
+                cfg,
+                progress_cb=progress,
+                model_path=self.model_path,
+                start_epoch=start_ep,
+                meta_path=meta_path,
+            )
+            if (
+                not self.model_path.exists()
+                or self.model_path.stat().st_size < 1_000_000
+            ):
                 raise RuntimeError("모델 저장 실패: 생성 실패 또는 용량 미달")
             msg = "done"
             self.model_exists = True
@@ -102,7 +145,9 @@ class ChatbotService:
             self.model_exists = False
             return
         with self._lock:
-            self.training = False; self._status_msg = msg; self._progress = 1.0 if msg == "done" else 0.0
+            self.training = False
+            self._status_msg = msg
+            self._progress = 1.0 if msg == "done" else 0.0
 
     def start_training(self, data_path: str = ".") -> Dict[str, Any]:
         logging.getLogger().setLevel(
@@ -112,7 +157,9 @@ class ChatbotService:
             if self.training:
                 logger.warning("Training already running")
                 return {"success": False, "msg": "already_training", "data": None}
-            self.training = True; self._status_msg = "starting"; self._progress = 0.001
+            self.training = True
+            self._status_msg = "starting"
+            self._progress = 0.001
         log_gpu_memory()
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         if device.type == "cuda" and not self._config.get("force_cpu", False):
@@ -121,13 +168,17 @@ class ChatbotService:
             except Exception:
                 device = torch.device("cpu")
         logger.info("Device selected: %s", device)
-        self._thread = Thread(target=self.train, args=(Path("datas") / data_path,), daemon=True)
+        self._thread = Thread(
+            target=self.train, args=(Path("datas") / data_path,), daemon=True
+        )
         self._thread.start()
         return {"success": True, "msg": "started", "data": None}
+
     def stop_training(self) -> None:
         if self._thread and self._thread.is_alive():
             logger.info("Stop requested, waiting for thread")
             self._thread.join()
+
     def infer(self, text: str) -> Dict[str, Any]:
         logger.info("infer | model_exists=%s", self.model_exists)
         if not self.model_exists or self._model is None or self._tokenizer is None:
@@ -210,12 +261,20 @@ class ChatbotService:
             data["logs"] = ""
         data["current_config"] = self._config.copy()
         return {"success": True, "msg": "ok", "data": data}
+
     def delete_model(self) -> bool:  # pragma: no cover
         if self.training:
             self.stop_training()
         if self.model_path.exists():
             try:
-                self.model_path.unlink(); self.model_exists = False; self._status_msg = "model_deleted"; logger.info("Model deleted"); return True
+                self.model_path.unlink()
+                meta = self.model_path.with_suffix(".meta.json")
+                if meta.exists():
+                    meta.unlink()
+                self.model_exists = False
+                self._status_msg = "model_deleted"
+                logger.info("Model deleted")
+                return True
             except Exception:
                 logger.exception("Delete model failed")
                 return False

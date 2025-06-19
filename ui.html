@@ -228,6 +228,12 @@
             margin-right: auto;
         }
 
+        .meta {
+            font-size: 0.75rem;
+            color: #9ca3af;
+            margin-left: 4px;
+        }
+
         .message-footer {
             font-size: 0.75em;
             color: var(--color-text-muted);
@@ -686,9 +692,6 @@
             const sendBtn = document.getElementById('sendBtn');
             const userInput = document.getElementById('userInput');
             const chatHistory = document.getElementById('chatHistory');
-            new MutationObserver(() => {
-                chatHistory.scrollTop = chatHistory.scrollHeight;
-            }).observe(chatHistory, { childList: true });
             const trainStatus = document.getElementById('trainStatus');
             const cpuStatus = document.getElementById('cpuStatus');
             const gpuStatus = document.getElementById('gpuStatus');
@@ -947,27 +950,37 @@
 
 
 
-            function appendChat(role, text){
-                const div = document.createElement('div');
-                div.className = role === 'USER' ? 'user-msg' : 'bot-msg';
-                div.textContent = text;
-                chatHistory.appendChild(div);
+            function appendChat(role, text, latency = 0){
+                const divMsg = document.createElement('div');
+                divMsg.className = role === 'USER' ? 'user-msg' : 'bot-msg';
+                divMsg.textContent = text;
+                const meta = document.createElement('span');
+                meta.className = 'meta';
+                meta.textContent = new Date().toLocaleTimeString() + ' \u00B7 ' + latency + ' ms';
+                divMsg.appendChild(meta);
+                chatHistory.appendChild(divMsg);
 
-                // === 자동 스크롤 ===
-                // 렌더 후 새 메시지가 보이도록 보장
-                div.scrollIntoView({ behavior: 'auto', block: 'end' });
+                function scrollBottom(){
+                    const box = document.getElementById('chatHistory');
+                    box.scrollTop = box.scrollHeight;
+                }
+                scrollBottom();
+                requestAnimationFrame(scrollBottom);
+                setTimeout(scrollBottom, 30);
             }
 
             function onSend(){
                 const q = userInput.value.trim();
                 if(!q) return;
+                const start = performance.now();
                 api.infer(q).then(({success,data,msg})=>{
+                    const latency = Math.round(performance.now() - start);
                     if(!success){
                         showError(msg||'BOT 응답이 비었습니다');
                         return;
                     }
                     appendChat('USER', q);
-                    appendChat('BOT', data);
+                    appendChat('BOT', data, latency);
                     userInput.value='';
                 }).catch(err=>showError(err.message));
             }
