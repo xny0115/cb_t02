@@ -4,9 +4,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass, asdict
 from pathlib import Path
-import json
 
-CONFIG_PATH = Path("configs/config.json")
+from .utils.persist import load_json, save_json
+
+CONFIG_PATH = Path("configs/current.json")
 
 
 @dataclass
@@ -31,13 +32,12 @@ class Config:
 
 def load_config() -> Config:
     """Load configuration from disk."""
-    if CONFIG_PATH.exists():
-        data = json.loads(CONFIG_PATH.read_text("utf-8"))
+    data = load_json(CONFIG_PATH)
+    if data:
         return Config(**data)
     return Config()
 
 
 def save_config(cfg: Config) -> None:
     """Persist configuration to disk."""
-    CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
-    CONFIG_PATH.write_text(json.dumps(asdict(cfg), ensure_ascii=False, indent=2))
+    save_json(asdict(cfg), CONFIG_PATH)

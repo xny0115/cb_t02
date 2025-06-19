@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import psutil
 import torch
+from ..config import Config
 
 
 class AutoTuner:
@@ -14,15 +15,15 @@ class AutoTuner:
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
         self.mem_total = psutil.virtual_memory().total // (1024**3)
 
-    def suggest(self) -> dict:
+    def suggest_config(self) -> Config:
         batch_size = 4
         if self.device == "cuda":
             batch_size = min(32, max(4, self.mem_total // 4))
         lr = 3e-4 if self.dataset_size > 1000 else 1e-3
         epochs = 10 if self.dataset_size > 500 else 20
-        return {
-            "batch_size": batch_size,
-            "learning_rate": lr,
-            "epochs": epochs,
-            "device": self.device,
-        }
+        cfg = Config(
+            batch_size=batch_size,
+            learning_rate=lr,
+            num_epochs=epochs,
+        )
+        return cfg

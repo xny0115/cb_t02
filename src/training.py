@@ -45,6 +45,8 @@ class TorchQADataset(Dataset):
     """PyTorch dataset wrapper."""
 
     def __init__(self, data: QADataset, vocab: dict[str, int]) -> None:
+        if not vocab:
+            raise ValueError("empty vocab")
         self.data = data
         self.vocab = vocab
 
@@ -53,6 +55,8 @@ class TorchQADataset(Dataset):
 
     def __getitem__(self, idx: int):
         q, a = self.data[idx]
+        if not q or not a:
+            raise ValueError("invalid pair")
         return encode(q, self.vocab), encode(a, self.vocab)
 
 
@@ -69,15 +73,13 @@ def train(dataset_path: Path, cfg: Config, progress_cb: Callable | None = None) 
     if len(ds) < 50:
         logger.warning("Dataset too small: %d entries", len(ds))
     tuner = AutoTuner(len(ds))
-    params = tuner.suggest()
-    params.update(
-        {
-            "batch_size": cfg.batch_size,
-            "learning_rate": cfg.learning_rate,
-            "epochs": cfg.num_epochs,
-            "device": "cuda" if torch.cuda.is_available() else "cpu",
-        }
-    )
+    sugg = tuner.suggest_config()
+    params = {
+        "batch_size": cfg.batch_size or sugg.batch_size,
+        "learning_rate": cfg.learning_rate or sugg.learning_rate,
+        "epochs": cfg.num_epochs or sugg.num_epochs,
+        "device": "cuda" if torch.cuda.is_available() else "cpu",
+    }
 
     vocab = build_vocab(ds)
     train_ds = TorchQADataset(ds, vocab)
@@ -95,13 +97,31 @@ def train(dataset_path: Path, cfg: Config, progress_cb: Callable | None = None) 
         model.train()
         total_loss = 0.0
         for src, tgt in loader:
-            src, tgt = src.to(device), tgt.to(device)
-            optimizer.zero_grad()
-            output = model(src, tgt[:-1, :])
-            loss = criterion(output.reshape(-1, len(vocab)), tgt[1:, :].reshape(-1))
-            loss.backward()
-            optimizer.step()
-            total_loss += loss.item()
+            try:
+                src, tgt = src.to(device), tgt.to(device)
+                optimizer.zero_grad()
+                output = model(src, tgt[:-1, :])
+                loss = criterion(
+                    output.reshape(-1, len(vocab)), tgt[1:, :].reshape(-1)
+                )
+                loss.backward()
+                optimizer.step()
+                total_loss += loss.item()
+            except RuntimeError as exc:
+                if "out of memory" in str(exc).lower() and params["batch_size"] > 1:
+                    torch.cuda.empty_cache()
+                    params["batch_size"] = max(1, params["batch_size"] // 2)
+                    loader = DataLoader(
+                        train_ds,
+                        batch_size=params["batch_size"],
+                        shuffle=True,
+                        collate_fn=collate_fn,
+                    )
+                    logger.warning(
+                        "OOM encountered, reducing batch size to %d", params["batch_size"]
+                    )
+                    break
+                raise
         loss_value = total_loss / len(loader)
         logger.info("Epoch %d loss %.4f", epoch + 1, loss_value)
         if progress_cb:
@@ -147,4 +167,5 @@ def infer(question: str, cfg: Config, model_path: Path | None = None) -> str:
         if t == vocab["<eos>"]:
             break
         result.append(words[t - 2])
-    return " ".join(result)
+    out = " ".join(result)
+    return out or "N/A"

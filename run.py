@@ -4,11 +4,11 @@ from __future__ import annotations
 
 import webview
 
-from src.app import Backend
 from src.utils.logger import setup_logger
+from src.ui.backend import WebBackend
 
 
 if __name__ == "__main__":
     setup_logger()
-    webview.create_window("Chatbot", "ui.html", js_api=Backend())
-    webview.start()
+    webview.create_window("Chatbot", "ui.html", js_api=WebBackend())
+    webview.start(gui="edgechromium", http_server=False)
