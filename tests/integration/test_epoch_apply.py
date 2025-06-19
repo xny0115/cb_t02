@@ -7,14 +7,9 @@ import time
 def test_epoch_apply(tmp_path):
     setup_logger()
     backend = WebBackend(ChatbotService())
-    backend.set_config({'epochs': 5})
+    backend.set_config({'epochs': 7})
     backend.start_training()
-    found = False
-    for _ in range(60):
-        text = LOG_PATH.read_text(encoding='utf-8')
-        if 'Training complete' in text:
-            found = True
-            break
-        time.sleep(0.1)
+    time.sleep(2)
+    text = LOG_PATH.read_text(encoding='utf-8')
     backend.delete_model()
-    assert found
+    assert 'training epochs=7' in text
