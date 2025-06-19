@@ -14,4 +14,4 @@ def test_chat_flow(tmp_path):
     res = svc.infer("인공지능이란 뭐야?")
     assert res["success"]
     assert len(res["data"]) >= 5
-    svc.delete_model()
+    assert svc.delete_model() is True

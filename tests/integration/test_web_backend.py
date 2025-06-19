@@ -19,6 +19,6 @@ def test_web_backend_cycle(tmp_path):
     result = backend.infer('테스트')
     assert result['success']
     assert isinstance(result['data'], str)
-    backend.delete_model()
+    assert backend.delete_model() is True
     result2 = backend.infer('테스트')
     assert not result2['success']

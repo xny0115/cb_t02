@@ -72,7 +72,7 @@ class Backend:
         except Exception as exc:
             return {"success": False, "data": None, "error": str(exc)}
 
-    def delete_model(self) -> Dict[str, Any]:
+    def delete_model(self) -> bool:
         return self.svc.delete_model()
 
     def get_dataset_info(self, data_path: str = ".") -> Dict[str, Any]:
