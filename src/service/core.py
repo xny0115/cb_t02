@@ -65,14 +65,12 @@ class ChatbotService:
         last = time.time()
         def progress(epoch: int, total: int, loss: float) -> None:
             nonlocal last
-            if time.time() - last >= 1:
-                logger.info("Epoch %d/%d loss %.4f", epoch, total, loss)
-                last = time.time()
             with self._lock:
                 self._status_msg = f"{epoch}/{total} loss={loss:.4f}"
                 self._progress = epoch / total
                 self._last_loss = loss
-        logger.info("Training started...")
+            if time.time() - last >= 1:
+                last = time.time()
         device = "cuda" if torch.cuda.is_available() else "cpu"
         logger.info("Device selected: %s", device)
         log_gpu_memory()
@@ -122,18 +120,26 @@ class ChatbotService:
         try:
             device = "cuda" if torch.cuda.is_available() else "cpu"
             logger.info("Device selected: %s", device)
-            self._model.to(device).eval()
+            if hasattr(self._model, "to"):
+                self._model.to(device).eval()
             tokens = self._tokenizer.encode(text).unsqueeze(1).to(device)
             out = self._model.generate(tokens, max_new_tokens=64)
-            answer = self._tokenizer.decode(out.squeeze().tolist()[1:]).strip()
-            if not answer:
-                logger.warning("empty answer | prompt=%s", text)
-                return {"success": False, "msg": "empty_answer", "data": None}
-            logger.debug("infer result: %s", answer[:60])
-            return {"success": True, "msg": "", "data": answer}
+            ids = out.view(-1).tolist()[1:]
+            decoded = self._tokenizer.decode(ids).strip()
+            if not decoded:
+                logger.warning("empty answer fallback used | prompt=%s", text[:40])
+                decoded = self._simple_fallback(text)
+            logger.debug("infer result: %s", decoded[:60])
+            return {"success": True, "msg": "", "data": decoded}
         except Exception as exc:
             logger.exception("infer failed")
             return {"success": False, "msg": f"error: {exc}", "data": None}
+
+    def _simple_fallback(self, prompt: str) -> str:
+        """Return a short apology message."""
+        if "?" in prompt:
+            return "죄송합니다. 답변을 준비하지 못했습니다."
+        return "답변을 생성하지 못했습니다."
     def get_status(self) -> Dict[str, Any]:
         with self._lock:
             msg = self._status_msg
