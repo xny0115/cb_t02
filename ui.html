@@ -16,7 +16,7 @@
             --color-background-medium: #374151;
             --color-background-light: #4B5563;
 
-            --color-text-primary: #F9FAFB;
+            --color-text-primary: #fefff7;
             --color-text-secondary: #D1D5DB;
             --color-text-muted: #9CA3AF;
 
@@ -24,6 +24,8 @@
             --color-accent-primary-hover: #2563EB;
             --color-accent-secondary: #4d927b;
             --color-accent-secondary-hover: #059669;
+            --color-accent-thirdly: #71a3c5;
+            --color-accent-thirdly-hover: #5997af;
 
             --color-danger: #8d4b4b;
             --color-danger-hover: #DC2626;
@@ -441,10 +443,12 @@
             transition: background-color 0.2s ease, transform 0.1s ease;
         }
         .action-buttons button:hover { transform: translateY(-2px); }
-        .action-buttons button#trainBtn { background-color: var(--color-accent-secondary); }
-        .action-buttons button#trainBtn:hover { background-color: var(--color-accent-secondary-hover); }
+        .action-buttons button#trainBtn { background-color: var(--color-accent-primary); }
+        .action-buttons button#trainBtn:hover { background-color: var(--color-accent-primary-hover); }
         .action-buttons button#saveSettingsBtn { background-color: var(--color-accent-primary); }
         .action-buttons button#saveSettingsBtn:hover { background-color: var(--color-accent-primary-hover); }
+        .action-buttons button#autoTuneBtn { background-color: var(--color-accent-primary); }
+        .action-buttons button#autoTuneBtn:hover { background-color: var(--color-accent-primary-hover); } 
         .action-buttons button.delete-btn { background-color: var(--color-danger); }
         .action-buttons button.delete-btn:hover { background-color: var(--color-danger-hover); }
 
