@@ -26,3 +26,29 @@ def encode(text: str, vocab: dict[str, int]):
     """Convert text to tensor of token ids."""
     ids = [vocab.get(t, 0) for t in text.split()] + [vocab["<eos>"]]
     return torch.tensor(ids, dtype=torch.long)
+
+
+def decode(ids: Iterable[int], vocab: dict[str, int]) -> str:
+    """Convert tensor ids back to string."""
+    rev = {v: k for k, v in vocab.items()}
+    words = []
+    for i in ids:
+        if i == vocab["<eos>"]:
+            break
+        token = rev.get(int(i), "")
+        if token and token not in ("<pad>", "<eos>"):
+            words.append(token)
+    return " ".join(words)
+
+
+class Tokenizer:
+    """Tiny tokenizer built from a dataset."""
+
+    def __init__(self, vocab: dict[str, int]) -> None:
+        self.vocab = vocab
+
+    def encode(self, text: str) -> torch.Tensor:
+        return encode(text, self.vocab)
+
+    def decode(self, ids: Iterable[int]) -> str:
+        return decode(ids, self.vocab)

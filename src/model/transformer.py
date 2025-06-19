@@ -47,6 +47,19 @@ class Seq2SeqTransformer(nn.Module):
         output = self.transformer(src, tgt)
         return self.fc_out(output)
 
+    @torch.no_grad()
+    def generate(self, src: torch.Tensor, max_new_tokens: int = 64) -> torch.Tensor:
+        """Greedy decoding helper."""
+        device = next(self.parameters()).device
+        tgt = torch.tensor([[1]], dtype=torch.long, device=device)
+        for _ in range(max_new_tokens):
+            out = self(src.to(device), tgt)
+            token = int(out[-1, 0].argmax())
+            tgt = torch.cat([tgt, torch.tensor([[token]], device=device)])
+            if token == 1:
+                break
+        return tgt
+
 
 class PositionalEncoding(nn.Module):
     """Standard sinusoidal positional encoding."""

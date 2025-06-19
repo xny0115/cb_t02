@@ -936,29 +936,19 @@
                 .catch(err => showStatus(datasetInfo, '데이터셋 정보 로드 실패: ' + (err.message || err), 'error'));
 
 
-            // 메시지 전송 버튼
-            sendBtn.addEventListener('click', () => {
-                const msg = messageInput.value.trim();
-                if (!msg) return;
-                addMessage(msg, 'user');
+            function onSend() {
+                const q = messageInput.value.trim();
+                if (!q) return;
+                api.infer(q).then(({ success, data, msg }) => {
+                    if (!success) { showStatus(trainStatus, msg, 'error'); return; }
+                    addMessage(q, 'user');
+                    addMessage(data, 'bot');
+                });
                 messageInput.value = '';
-                adjustInputHeight(); // 메시지 전송 후 입력창 높이 초기화
+                adjustInputHeight();
                 messageInput.focus();
-
-                api.inference(msg)
-                    .then(r => {
-                        if (!r.success) {
-                            addMessage('오류: ' + r.msg, 'bot');
-                            return;
-                        }
-                        const ans = r && r.data ? r.data.answer || r.data : '응답 없음';
-                        addMessage(ans, 'bot');
-                    })
-                    .catch(err => {
-                        addMessage('오류 발생: ' + (err.message || err), 'bot');
-                        console.error('inference failed', err);
-                    });
-            });
+            }
+            sendBtn.addEventListener('click', onSend);
 
             // 시스템 상태 폴링
             setInterval(() => {
