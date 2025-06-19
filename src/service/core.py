@@ -78,15 +78,15 @@ class ChatbotService:
                 self._progress = epoch / total
                 self._last_loss = loss
 
-        logger.info("Training %s", path)
+        logger.info("Training started...")
         log_gpu_memory()
         try:
             train(path, self.cfg, progress_cb=progress, model_path=self.model_path)
             if not self.model_path.exists() or self.model_path.stat().st_size < 1_000_000:
-                raise RuntimeError("모델 저장 실패: 파일 미생성 또는 손상")
+                raise RuntimeError("모델 저장 실패: 생성 실패 또는 용량 미달")
             msg = "done"
             self.model_exists = True
-            logger.info("Training finished")
+            logger.info("Training complete")
         except Exception as exc:  # pragma: no cover
             msg = f"error: {exc}"
             logger.exception("Training failed")

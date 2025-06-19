@@ -8,6 +8,7 @@ from logging import Formatter
 from pathlib import Path
 from datetime import datetime
 import json
+import torch
 
 
 LOG_DIR = Path("logs")
@@ -52,11 +53,6 @@ def setup_logger() -> Path:
 
 def log_gpu_memory() -> None:
     """Debug log of current GPU memory usage."""
-    try:
-        import torch
-
-        if torch.cuda.is_available():
-            mem = torch.cuda.memory_allocated() / 1024**2
-            logging.getLogger(__name__).debug("GPU memory %.1fMB", mem)
-    except Exception:
-        logging.getLogger(__name__).debug("GPU memory check failed")
+    if torch.cuda.is_available():
+        mem = torch.cuda.memory_allocated() / 1024**2
+        logging.getLogger(__name__).debug("GPU memory %.1fMB", mem)
