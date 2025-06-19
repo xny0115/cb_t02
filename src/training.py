@@ -11,6 +11,8 @@ import logging
 import torch
 from torch import nn, optim
 from torch.utils.data import DataLoader, Dataset
+import json
+from datetime import datetime
 
 from .config import Config
 from .service.utils import to_config
@@ -38,8 +40,6 @@ class EarlyStopping:
             return False
         self.counter += 1
         return self.counter >= self.patience
-
-
 
 
 class TorchQADataset(Dataset):
@@ -73,6 +73,8 @@ def train(
     cfg: Dict[str, Any] | Config,
     progress_cb: Callable | None = None,
     model_path: Path | None = None,
+    start_epoch: int = 0,
+    meta_path: Path | None = None,
 ) -> Path:
     """Train model using dataset and configuration."""
     if not isinstance(cfg, Config):
@@ -81,15 +83,27 @@ def train(
     ds = QADataset(dataset_path)
     save_path = model_path or Path("models") / "current.pth"
     save_path.parent.mkdir(parents=True, exist_ok=True)
+    if meta_path:
+        meta_path.parent.mkdir(parents=True, exist_ok=True)
 
     if not torch.cuda.is_available():
         vocab = build_vocab(ds)
         model = Seq2SeqTransformer(vocab_size=len(vocab))
+        if start_epoch and save_path.exists():
+            model.load_state_dict(torch.load(save_path, map_location="cpu"))
         torch.save(model.state_dict(), save_path)
-        for epoch in range(cfg.num_epochs):
+        for e in range(start_epoch, cfg.num_epochs):
             if progress_cb:
-                progress_cb(epoch + 1, cfg.num_epochs, 0.0)
-            logger.info("epoch %d/%d | loss=0.0000", epoch + 1, cfg.num_epochs)
+                progress_cb(e + 1, cfg.num_epochs, 0.0)
+            logger.info("epoch %d/%d | loss=0.0000", e + 1, cfg.num_epochs)
+            if meta_path:
+                json.dump(
+                    {
+                        "epochs_done": e + 1,
+                        "update_time": datetime.utcnow().isoformat(),
+                    },
+                    open(meta_path, "w"),
+                )
         logger.info("Training complete (dummy)")
         return save_path
 
@@ -108,42 +122,51 @@ def train(
 
     vocab = build_vocab(ds)
     train_ds = TorchQADataset(ds, vocab)
-    loader = DataLoader(train_ds, batch_size=params["batch_size"], shuffle=True, collate_fn=collate_fn)
+    loader = DataLoader(
+        train_ds, batch_size=params["batch_size"], shuffle=True, collate_fn=collate_fn
+    )
 
+    device = params["device"]
     model = Seq2SeqTransformer(vocab_size=len(vocab))
+    if start_epoch and save_path.exists():
+        model.load_state_dict(torch.load(save_path, map_location=device))
     criterion = nn.CrossEntropyLoss(ignore_index=0)
     optimizer = optim.Adam(model.parameters(), lr=params["learning_rate"])
-    device = params["device"]
     model.to(device)
 
     stopper = EarlyStopping(cfg.early_stopping_patience)
 
-    for epoch in range(params["epochs"]):
+    max_epochs = params["epochs"]
+    for epoch in range(start_epoch, max_epochs):
         model.train()
         total_loss = 0.0
         for step, (src, tgt) in enumerate(loader, start=1):
             src, tgt = src.to(device), tgt.to(device)
             optimizer.zero_grad()
             output = model(src, tgt[:-1, :])
-            loss = criterion(
-                output.reshape(-1, len(vocab)), tgt[1:, :].reshape(-1)
-            )
+            loss = criterion(output.reshape(-1, len(vocab)), tgt[1:, :].reshape(-1))
             loss.backward()
             optimizer.step()
             total_loss += loss.item()
             if cfg.verbose:
                 logger.debug("step %d loss %.4f", step, loss.item())
         epoch_loss = total_loss / len(loader)
-        logger.info(
-            "epoch %d/%d | loss=%.4f", epoch + 1, params["epochs"], epoch_loss
-        )
+        logger.info("epoch %d/%d | loss=%.4f", epoch + 1, max_epochs, epoch_loss)
         if progress_cb:
-            progress_cb(epoch + 1, params["epochs"], epoch_loss)
+            progress_cb(epoch + 1, max_epochs, epoch_loss)
         if stopper.step(epoch_loss):
             logger.info("Early stopping triggered at epoch %d", epoch + 1)
             break
 
-    torch.save(model.state_dict(), save_path)
+        torch.save(model.state_dict(), save_path)
+        if meta_path:
+            json.dump(
+                {
+                    "epochs_done": epoch + 1,
+                    "update_time": datetime.utcnow().isoformat(),
+                },
+                open(meta_path, "w"),
+            )
     logger.info("Model saved to models/current.pth")
     logger.info("Training complete")
     return save_path
