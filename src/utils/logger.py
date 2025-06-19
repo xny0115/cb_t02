@@ -26,10 +26,13 @@ def setup_logger() -> Path:
     log_dir = Path("log")
     log_dir.mkdir(parents=True, exist_ok=True)
     log_file = log_dir / f"{datetime.now():%y%m%d_%H%M}.json"
-    handler = logging.FileHandler(log_file, encoding="utf-8")
-    handler.setFormatter(JsonFormatter())
+    file_handler = logging.FileHandler(log_file, encoding="utf-8")
+    file_handler.setFormatter(JsonFormatter())
+    stream_handler = logging.StreamHandler()
+    stream_handler.setFormatter(JsonFormatter())
     root = logging.getLogger()
     root.setLevel(logging.INFO)
     if not root.handlers:
-        root.addHandler(handler)
+        root.addHandler(file_handler)
+        root.addHandler(stream_handler)
     return log_file
