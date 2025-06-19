@@ -131,7 +131,8 @@ def train(
             loss.backward()
             optimizer.step()
             total_loss += loss.item()
-            logger.debug("step %d loss %.4f", step, loss.item())
+            if cfg.verbose:
+                logger.debug("step %d loss %.4f", step, loss.item())
         epoch_loss = total_loss / len(loader)
         logger.info(
             "epoch %d/%d | loss=%.4f", epoch + 1, params["epochs"], epoch_loss

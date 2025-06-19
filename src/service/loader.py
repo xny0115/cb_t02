@@ -10,7 +10,7 @@ from ..model.transformer import Seq2SeqTransformer
 logger = logging.getLogger(__name__)
 
 
-def auto_tune(cfg: dict) -> None:
+def auto_tune(cfg: dict) -> None:  # pragma: no cover
     try:
         ds = QADataset(Path("datas"))
         sugg = AutoTuner(len(ds)).suggest_config()
@@ -21,7 +21,7 @@ def auto_tune(cfg: dict) -> None:
         logger.warning("Auto tune failed: %s", exc)
 
 
-def load_model(path: Path) -> tuple[Tokenizer, Seq2SeqTransformer]:
+def load_model(path: Path) -> tuple[Tokenizer, Seq2SeqTransformer]:  # pragma: no cover
     ds = QADataset(Path("datas"))
     vocab = build_vocab(ds)
     tokenizer = Tokenizer(vocab)

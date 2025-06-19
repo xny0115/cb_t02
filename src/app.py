@@ -74,6 +74,3 @@ class Backend:
 
     def delete_model(self) -> bool:
         return self.svc.delete_model()
-
-    def get_dataset_info(self, data_path: str = ".") -> Dict[str, Any]:
-        return self.svc.get_dataset_info(data_path)

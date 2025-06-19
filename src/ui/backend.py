@@ -21,6 +21,13 @@ class WebBackend:
     def start_training(self) -> Dict[str, Any]:
         return self._svc.start_training()
 
+    def auto_tune(self) -> Dict[str, Any]:
+        cfg = self._svc.auto_tune()
+        return cfg
+
+    def get_config(self) -> Dict[str, Any]:
+        return self._svc.get_config()
+
     def set_config(self, cfg: Dict[str, Any]) -> Dict[str, Any]:
         ok, msg = self._svc.update_config(cfg)
         return {"success": ok, "msg": msg, "data": None}

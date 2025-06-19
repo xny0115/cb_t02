@@ -636,11 +636,11 @@
             <div class="action-buttons">
                 <button id="saveSettingsBtn">설정 저장</button>
                 <button id="trainBtn">모델 학습 시작</button>
+                <button id="autoTuneBtn">Auto-Tune</button>
                 <button id="deleteModelBtn" class="delete-btn">모델 파일 삭제</button>
             </div>
 
             <div id="trainStatus" class="status-message"></div>
-            <div id="datasetInfo" class="status-message"></div>
             <div id="deleteStatus" class="status-message"></div>
 
             <div class="system-status">
@@ -670,6 +670,7 @@
         document.addEventListener('DOMContentLoaded', () => {
             const trainBtn = document.getElementById('trainBtn');
             const saveBtn = document.getElementById('saveSettingsBtn');
+            const autoBtn = document.getElementById('autoTuneBtn');
             const sendBtn = document.getElementById('sendBtn');
             const userInput = document.getElementById('userInput');
             const chatHistory = document.getElementById('chatHistory');
@@ -680,7 +681,6 @@
             const dropoutValue = document.getElementById('dropoutValue');
             const deleteBtn = document.getElementById('deleteModelBtn');
             const deleteStatus = document.getElementById('deleteStatus');
-            const datasetInfo = document.getElementById('datasetInfo');
             const tabs = document.querySelectorAll('.tab');
             const contents = document.querySelectorAll('.content-wrapper');
             const mainContainer = document.querySelector('.main-container');
@@ -765,6 +765,25 @@
                 };
             }
 
+            function applyCfg(cfg) {
+                if ('epochs' in cfg || 'num_epochs' in cfg) document.getElementById('epochInput').value = cfg.epochs || cfg.num_epochs;
+                if ('batch_size' in cfg) document.getElementById('batchInput').value = cfg.batch_size;
+                if ('lr' in cfg || 'learning_rate' in cfg) document.getElementById('lrInput').value = cfg.lr || cfg.learning_rate;
+                if ('warmup_steps' in cfg) document.getElementById('warmupStepsInput').value = cfg.warmup_steps;
+                if ('max_sequence_length' in cfg) document.getElementById('maxSeqLenInput').value = cfg.max_sequence_length;
+                if ('num_heads' in cfg) document.getElementById('numHeadsInput').value = cfg.num_heads;
+                if ('num_encoder_layers' in cfg) document.getElementById('numEncoderLayersInput').value = cfg.num_encoder_layers || cfg.n_layers;
+                if ('num_decoder_layers' in cfg) document.getElementById('numDecoderLayersInput').value = cfg.num_decoder_layers || cfg.n_layers;
+                if ('model_dim' in cfg || 'd_model' in cfg) document.getElementById('hiddenDimInput').value = cfg.model_dim || cfg.d_model;
+                if ('ff_dim' in cfg) document.getElementById('ffDimInput').value = cfg.ff_dim;
+                if ('top_k' in cfg) document.getElementById('topkInput').value = cfg.top_k;
+                if ('temperature' in cfg) document.getElementById('tempInput').value = cfg.temperature;
+                if ('dropout_ratio' in cfg) {
+                    dropoutInput.value = cfg.dropout_ratio;
+                    dropoutValue.textContent = parseFloat(cfg.dropout_ratio).toFixed(2);
+                }
+            }
+
 
             let api = null;
 
@@ -795,23 +814,7 @@
 
             // 초기 설정 로드
             const loadCfg = () => api.get_config().then(r => {
-                const cfg = r.data || {};
-                if ('num_epochs' in cfg) document.getElementById('epochInput').value = cfg.num_epochs;
-                if ('batch_size' in cfg) document.getElementById('batchInput').value = cfg.batch_size;
-                if ('learning_rate' in cfg) document.getElementById('lrInput').value = cfg.learning_rate;
-                if ('warmup_steps' in cfg) document.getElementById('warmupStepsInput').value = cfg.warmup_steps;
-                if ('max_sequence_length' in cfg) document.getElementById('maxSeqLenInput').value = cfg.max_sequence_length;
-                if ('num_heads' in cfg) document.getElementById('numHeadsInput').value = cfg.num_heads;
-                if ('num_encoder_layers' in cfg) document.getElementById('numEncoderLayersInput').value = cfg.num_encoder_layers;
-                if ('num_decoder_layers' in cfg) document.getElementById('numDecoderLayersInput').value = cfg.num_decoder_layers;
-                if ('model_dim' in cfg) document.getElementById('hiddenDimInput').value = cfg.model_dim;
-                if ('ff_dim' in cfg) document.getElementById('ffDimInput').value = cfg.ff_dim;
-                if ('top_k' in cfg) document.getElementById('topkInput').value = cfg.top_k;
-                if ('temperature' in cfg) document.getElementById('tempInput').value = cfg.temperature;
-                if ('dropout_ratio' in cfg) {
-                    dropoutInput.value = cfg.dropout_ratio;
-                    dropoutValue.textContent = cfg.dropout_ratio.toFixed(2);
-                }
+                applyCfg(r.data || {});
             }).catch(err => console.error('get_config failed', err));
 
             // 드롭아웃 슬라이더 값 업데이트
@@ -899,6 +902,13 @@
                     });
             });
 
+            autoBtn.addEventListener('click', () => {
+                api.auto_tune().then(cfg => {
+                    applyCfg(cfg);
+                    showStatus(trainStatus, 'auto-tune applied', 'success');
+                }).catch(err => showStatus(trainStatus, 'auto-tune 실패: ' + (err.message || err), 'error'));
+            });
+
             // 모델 파일 삭제 버튼
             deleteBtn.addEventListener('click', () => {
                 clearStatus(trainStatus);
@@ -915,13 +925,7 @@
                     .catch(err => showStatus(deleteStatus, '모델 파일 삭제 실패: ' + (err.message || err), 'error'));
             });
 
-            // 데이터셋 정보 로드
-            api.get_dataset_info('.')
-                .then(r => {
-                    const size = r && r.data ? r.data.size : 0;
-                    showStatus(datasetInfo, `데이터셋 크기: ${size} 문장`, 'info');
-                })
-                .catch(err => showStatus(datasetInfo, '데이터셋 정보 로드 실패: ' + (err.message || err), 'error'));
+
 
 
             function appendChat(role, text){
@@ -978,7 +982,7 @@
             };
         }
         window.addEventListener("pywebviewready", () => {
-            ["start_training", "delete_model", "infer", "get_status", "set_config"].forEach(m => {
+            ["start_training", "delete_model", "infer", "get_status", "set_config", "auto_tune"].forEach(m => {
                 api[m] = wrap(m, api[m]);
             });
         });
