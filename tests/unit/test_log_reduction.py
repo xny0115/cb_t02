@@ -1,5 +1,6 @@
 import logging
 from pathlib import Path
+from src.service.core import ChatbotService
 from src.training import train
 from src.config import Config
 

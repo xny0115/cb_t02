@@ -86,8 +86,10 @@ def train(
         vocab = build_vocab(ds)
         model = Seq2SeqTransformer(vocab_size=len(vocab))
         torch.save(model.state_dict(), save_path)
-        if progress_cb:
-            progress_cb(1, 1, 0.0)
+        for epoch in range(cfg.num_epochs):
+            if progress_cb:
+                progress_cb(epoch + 1, cfg.num_epochs, 0.0)
+            logger.info("epoch %d/%d | loss=0.0000", epoch + 1, cfg.num_epochs)
         logger.info("Training complete (dummy)")
         return save_path
 
