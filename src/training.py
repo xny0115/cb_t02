@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable, Iterable
+from typing import Any, Callable, Iterable, Dict
 
 import logging
 import torch
@@ -13,6 +13,7 @@ from torch import nn, optim
 from torch.utils.data import DataLoader, Dataset
 
 from .config import Config
+from .service.utils import to_config
 from .data.loader import QADataset
 from .utils.vocab import build_vocab, encode
 from .model.transformer import Seq2SeqTransformer
@@ -69,11 +70,14 @@ def collate_fn(batch: Iterable[tuple[Any, Any]]):
 
 def train(
     dataset_path: Path,
-    cfg: Config,
+    cfg: Dict[str, Any] | Config,
     progress_cb: Callable | None = None,
     model_path: Path | None = None,
 ) -> Path:
     """Train model using dataset and configuration."""
+    if not isinstance(cfg, Config):
+        cfg = to_config(cfg)
+    assert isinstance(cfg.num_epochs, int) and cfg.num_epochs > 0, "epochs must be int"
     ds = QADataset(dataset_path)
     save_path = model_path or Path("models") / "current.pth"
     save_path.parent.mkdir(parents=True, exist_ok=True)

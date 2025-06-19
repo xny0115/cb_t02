@@ -63,9 +63,18 @@ class ChatbotService:
     def get_config(self) -> Dict[str, Any]:
         return self._config.copy()
     def update_config(self, cfg: Dict[str, Any]) -> Tuple[bool, str]:
+        """Update config dict and persist with type casting."""
         try:
             with self._lock:
+                # map dataclass-style keys to internal names
+                for key, (src, _) in _CFG_MAP.items():
+                    if key in cfg:
+                        cfg[src] = cfg[key]
                 self._config.update(cfg)
+                # force type for critical params
+                self._config["epochs"] = int(cfg.get("epochs", 20))
+                self._config["batch_size"] = int(cfg.get("batch_size", 4))
+                self._config["lr"] = float(cfg.get("lr", 1e-4))
                 json.dump(self._config, open(CONFIG_PATH, "w"), indent=2)
             return True, "saved"
         except Exception as exc:
@@ -73,7 +82,9 @@ class ChatbotService:
             return False, str(exc)
     def train(self, path: Path) -> None:
         """Run the training process synchronously."""
-        cfg = to_config(self._config)
+        cfg = self._config
+        epochs = int(cfg.get("epochs", 20))
+        logger.info("training epochs=%d", epochs)
         last = time.time()
         def progress(epoch: int, total: int, loss: float) -> None:
             nonlocal last
@@ -125,6 +136,7 @@ class ChatbotService:
             logger.info("Stop requested, waiting for thread")  # pragma: no cover
             self._thread.join()  # pragma: no cover
     def infer(self, text: str) -> Dict[str, Any]:
+        logger.info("infer | model_exists=%s", self.model_exists)
         if not self.model_exists or self._model is None or self._tokenizer is None:
             return {"success": False, "msg": "model_missing", "data": None}
         try:

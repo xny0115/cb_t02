@@ -486,9 +486,10 @@
                 </div>
             <div class="tab" data-tab="settings">
                 <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 0 2.4l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.38a2 2 0 0 0-.73-2.73l-.15-.09a2 2 0 0 1 0-2.4l.15-.1a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"></path><circle cx="12" cy="12" r="3"></circle></svg>
-                </div>
-        </div>
+    </div>
+    </div>
 
+    <div id="errorBar" class="status-message error" style="display:none"></div>
         <div id="chatContent" class="content-wrapper active">
             <div class="chat-area" id="chatArea">
                 <div class="message bot">
@@ -677,6 +678,13 @@
             function showStatus(el, msg, type = 'info') {
                 el.textContent = msg;
                 el.className = `status-message active ${type}`; // 타입 클래스 추가
+            }
+
+            function showError(msg){
+              const bar = document.getElementById("errorBar");
+              bar.textContent = msg;
+              bar.style.display = "block";
+              setTimeout(()=>bar.style.display='none', 5000);
             }
 
             function clearStatus(el) {
@@ -940,13 +948,13 @@
                 const q = messageInput.value.trim();
                 if (!q) return;
                 api.infer(q).then(({ success, data, msg }) => {
-                    if (!success) { showStatus(trainStatus, msg, 'error'); return; }
+                    if(!success){showError(msg);return;}
                     addMessage(q, 'user');
                     addMessage(data, 'bot');
                     messageInput.value = '';
                     adjustInputHeight();
                     messageInput.focus();
-                }).catch(err => showStatus(trainStatus, err.message || err, 'error'));
+                }).catch(err => showError(err.message || err));
             }
             sendBtn.addEventListener('click', onSend);
 
