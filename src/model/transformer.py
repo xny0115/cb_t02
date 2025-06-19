@@ -3,10 +3,13 @@
 from __future__ import annotations
 
 import math
+import logging
 from typing import Tuple
 
 import torch
 from torch import nn
+
+logger = logging.getLogger(__name__)
 
 
 class Seq2SeqTransformer(nn.Module):
@@ -63,29 +66,33 @@ class Seq2SeqTransformer(nn.Module):
         device = src.device
         ys = torch.tensor([[eos_id]], device=device)
         ngrams: set[tuple[int, ...]] = set()
-        for _ in range(max_new_tokens):
-            out = self(src, ys)[:, -1, :] / temperature
+        for step in range(max_new_tokens):
+            out = self(src, ys)[-1, 0] / temperature
             if no_repeat_ngram > 1 and ys.size(0) >= no_repeat_ngram:
                 prefix = ys[0, -no_repeat_ngram + 1 :].tolist()
-                banned = [w for w in range(out.size(1)) if tuple(prefix + [w]) in ngrams]
+                banned = [w for w in range(out.size(0)) if tuple(prefix + [w]) in ngrams]
                 if banned:
-                    out[-1, banned] = -float("inf")
-            k = min(top_k, out.size(-1))
+                    out[banned] = -float("inf")
+            k = min(top_k, out.size(0))
             topk_val, topk_idx = out.topk(k)
-            probs = torch.softmax(topk_val, dim=-1)
-            if 0.0 < top_p < 1.0:
-                s_probs, s_idx = probs.sort(descending=True)
+            prob = torch.softmax(topk_val, dim=-1)
+            if torch.sum(prob) <= 0 or not torch.isfinite(prob).all():
+                logger.warning("multinomial fallback used at step %d", step)
+                next_id = topk_idx[0].view(1, 1)
+            elif 0.0 < top_p < 1.0:
+                s_probs, s_idx = prob.sort(descending=True)
                 cum = s_probs.cumsum(dim=-1)
                 mask = cum > top_p
                 if mask.all():
                     mask[-1] = False
                 s_probs[mask] = 0
                 s_probs.div_(s_probs.sum())
-                choice = torch.multinomial(s_probs[0], 1).item()
-                idx = s_idx[0, choice].item()
-                next_id = topk_idx[0, idx].view(1, 1)
+                choice = torch.multinomial(s_probs, 1).item()
+                idx = s_idx[choice].item()
+                next_id = topk_idx[idx].view(1, 1)
             else:
-                next_id = topk_idx[0, torch.multinomial(probs[0], 1).item()].view(1, 1)
+                choice = torch.multinomial(prob, 1).item()
+                next_id = topk_idx[choice].view(1, 1)
             ys = torch.cat([ys, next_id], dim=0)
             if no_repeat_ngram > 1 and ys.size(0) >= no_repeat_ngram:
                 ngrams.add(tuple(ys[0, -no_repeat_ngram:].tolist()))
