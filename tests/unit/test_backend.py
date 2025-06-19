@@ -7,8 +7,8 @@ import time
 def test_backend_cycle(tmp_path):
     backend = WebBackend(ChatbotService())
     cfg = load_config()
-    cfg.num_epochs = 1
-    backend._svc.set_config(cfg.__dict__)
+    cfg['epochs'] = 1
+    backend.set_config(cfg)
     res = backend.start_training()
     assert res['success']
     while True:

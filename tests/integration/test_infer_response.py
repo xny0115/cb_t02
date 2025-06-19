@@ -6,7 +6,7 @@ from src.utils.logger import setup_logger
 def test_infer_response(tmp_path):
     setup_logger()
     svc = ChatbotService()
-    svc.cfg.num_epochs = 1
+    svc.update_config({'epochs': 1})
     svc.start_training()
     for _ in range(30):
         st = svc.get_status()["data"]["status_msg"]

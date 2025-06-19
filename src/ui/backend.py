@@ -18,6 +18,10 @@ class WebBackend:
     def start_training(self) -> Dict[str, Any]:
         return self._svc.start_training()
 
+    def set_config(self, cfg: Dict[str, Any]) -> Dict[str, Any]:
+        ok, msg = self._svc.update_config(cfg)
+        return {"success": ok, "msg": msg, "data": None}
+
     def delete_model(self) -> Dict[str, Any]:
         ok = self._svc.delete_model()
         return {"success": ok, "msg": "deleted" if ok else "no_model", "data": None}

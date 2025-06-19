@@ -7,7 +7,7 @@ def test_gpu_switch(monkeypatch):
     setup_logger()
     monkeypatch.setattr("torch.cuda.is_available", lambda: True)
     svc = ChatbotService()
-    svc.cfg.num_epochs = 1
+    svc.update_config({'epochs': 1})
     svc.start_training()
     for _ in range(30):
         msg = svc.get_status()["data"]["status_msg"]
