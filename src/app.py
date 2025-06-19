@@ -18,6 +18,8 @@ from .training import train, infer
 from .data.loader import QADataset
 from .tuning.auto import AutoTuner
 
+logger = logging.getLogger(__name__)
+
 
 class Backend:
     """Simple in-process API for the webview UI."""
@@ -31,6 +33,7 @@ class Backend:
             "message": "idle",
             "log": [],
         }
+        logger.info("Backend initialized")
 
     def _auto_tune(self) -> None:
         """Adjust config based on dataset size and hardware."""
@@ -41,11 +44,13 @@ class Backend:
             self._cfg.batch_size = params["batch_size"]
             self._cfg.learning_rate = params["learning_rate"]
             self._cfg.num_epochs = params["epochs"]
+            logger.info("Auto tuned: %s", params)
         except Exception as exc:  # pragma: no cover - best effort
-            logging.getLogger(__name__).warning("Auto tune failed: %s", exc)
+            logger.warning("Auto tune failed: %s", exc)
 
     def get_config(self) -> Dict[str, Any]:
         """Return current configuration."""
+        logger.info("Config requested")
         return {"success": True, "data": self._cfg.__dict__, "error": None}
 
     def update_config(self, conf: Dict[str, Any]) -> Dict[str, Any]:
@@ -54,6 +59,7 @@ class Backend:
             if hasattr(self._cfg, key):
                 setattr(self._cfg, key, val)
         save_config(self._cfg)
+        logger.info("Config updated")
         return {"success": True, "data": self._cfg.__dict__, "error": None}
 
     def _train_thread(self, path: Path) -> None:
@@ -63,12 +69,15 @@ class Backend:
                 self._status["log"].append(self._status["message"])
 
         try:
+            logger.info("Training started: %s", path)
             train(path, self._cfg, progress_cb=cb)
             with self._state_lock:
                 self._status["message"] = "done"
+            logger.info("Training completed")
         except Exception as exc:  # pragma: no cover - high level
             with self._state_lock:
                 self._status["message"] = f"error: {exc}"
+            logger.error("Training failed: %s", exc)
         finally:
             with self._state_lock:
                 self._status["running"] = False
@@ -83,6 +92,7 @@ class Backend:
                     "error": "Training already running",
                 }
             self._status.update({"running": True, "message": "starting", "log": []})
+        logger.info("Start train requested for %s", data_path)
         thread = Thread(
             target=self._train_thread,
             args=(Path("datas") / data_path,),
@@ -120,9 +130,12 @@ class Backend:
     def inference(self, question: str) -> Dict[str, Any]:
         """Return model answer for a question."""
         try:
+            logger.info("Inference requested: %s", question)
             answer = infer(question, self._cfg)
         except Exception as exc:  # pragma: no cover - high level
+            logger.error("Inference failed: %s", exc)
             return {"success": False, "data": None, "error": str(exc)}
+        logger.info("Inference result: %s", answer)
         return {"success": True, "data": {"answer": answer}, "error": None}
 
     def delete_model(self) -> Dict[str, Any]:
@@ -130,7 +143,9 @@ class Backend:
         path = Path("models") / "transformer.pt"
         try:
             path.unlink(missing_ok=True)
+            logger.info("Model file deleted")
         except Exception as exc:  # pragma: no cover - OS level errors
+            logger.error("Delete model failed: %s", exc)
             return {"success": False, "data": None, "error": str(exc)}
         return {"success": True, "data": None, "error": None}
 
@@ -138,6 +153,8 @@ class Backend:
         """Return basic dataset statistics."""
         try:
             ds = QADataset(Path("datas") / data_path)
+            logger.info("Dataset info requested for %s", data_path)
         except Exception as exc:  # pragma: no cover - file errors
+            logger.error("Dataset info failed: %s", exc)
             return {"success": False, "data": None, "error": str(exc)}
         return {"success": True, "data": {"size": len(ds)}, "error": None}
