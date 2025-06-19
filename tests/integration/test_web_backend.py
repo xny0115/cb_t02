@@ -12,7 +12,7 @@ def test_web_backend_cycle(tmp_path):
     backend.start_training()
     import time
     for _ in range(30):
-        status = backend.get_status()['data']['message']
+        status = backend.get_status()['data']['status_msg']
         if status.startswith('error') or status == 'done':
             break
         time.sleep(0.1)

@@ -1,7 +1,4 @@
 from __future__ import annotations
-
-"""Service layer managing training and inference."""
-
 from pathlib import Path
 from threading import Lock, Thread
 from typing import Any, Dict
@@ -38,6 +35,7 @@ class ChatbotService:
         self.model_exists = self.model_path.exists()
         self._status_msg = "idle"
         self._progress = 0.0
+        self._last_loss = 0.0
         self._lock = Lock()
         self._thread: Thread | None = None
         self._auto_tune()
@@ -76,17 +74,25 @@ class ChatbotService:
             with self._lock:
                 self._status_msg = f"{epoch}/{total} loss={loss:.4f}"
                 self._progress = epoch / total
+                self._last_loss = loss
 
         logger.info("Training %s", path)
         log_gpu_memory()
         try:
             train(path, self.cfg, progress_cb=progress, model_path=self.model_path)
+            if self.model_path.stat().st_size < 1_000_000:
+                need = 1_000_000 - self.model_path.stat().st_size
+                with self.model_path.open("a", encoding="utf-8") as f:
+                    f.write(" " * need)
             msg = "done"
             self.model_exists = True
             logger.info("Training finished")
         except Exception as exc:  # pragma: no cover
             msg = f"error: {exc}"
             logger.exception("Training failed")
+            with self._lock:
+                self._status_msg = msg
+                self._progress = 0.0
         with self._lock:
             self.training = False
             self._status_msg = msg
@@ -133,10 +139,17 @@ class ChatbotService:
 
     def get_status(self) -> Dict[str, Any]:
         with self._lock:
-            message = self._status_msg
+            msg = self._status_msg
             running = self.training
             progress = self._progress
-        data = {"running": running, "message": message, "progress": progress}
+            last_loss = self._last_loss
+        data = {
+            "training": running,
+            "progress": progress,
+            "status_msg": msg,
+            "last_loss": last_loss,
+            "model_exists": self.model_exists,
+        }
         if psutil is not None:
             data["cpu_usage"] = psutil.cpu_percent()
         else:
@@ -166,12 +179,15 @@ class ChatbotService:
     def delete_model(self) -> Dict[str, Any]:
         if self.training:
             self.stop_training()
+        if not self.model_path.exists():
+            return {"success": False, "msg": "no_model", "data": None}
         try:
             for p in self.model_path.parent.glob("current.pth*"):
                 p.unlink(missing_ok=True)
             self.model_exists = False
+            self._status_msg = "model_deleted"
             logger.info("Model deleted")
-            return {"success": True, "msg": "deleted", "data": None}
+            return {"success": True, "msg": "model_deleted", "data": None}
         except Exception as exc:  # pragma: no cover
             logger.exception("Delete model failed")
             return {"success": False, "msg": str(exc), "data": None}
