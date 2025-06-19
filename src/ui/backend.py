@@ -3,6 +3,9 @@ from __future__ import annotations
 """pywebview API bridge."""
 
 from typing import Any, Dict
+import logging
+
+logger = logging.getLogger(__name__)
 
 from ..service import ChatbotService
 
@@ -27,6 +30,7 @@ class WebBackend:
         return {"success": ok, "msg": "deleted" if ok else "no_model", "data": None}
 
     def infer(self, text: str) -> Dict[str, Any]:
+        logger.debug("API infer called: %s", text[:40])
         return self._svc.infer(text)
 
     def get_status(self) -> Dict[str, Any]:
