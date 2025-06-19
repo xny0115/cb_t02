@@ -684,6 +684,35 @@
                 el.textContent = '';
             }
 
+            function updateProgress(p, msg) {
+                const pct = Math.floor(p * 100);
+                showStatus(trainStatus, `${msg} (${pct}%)`, 'info');
+            }
+
+            function pollStatus() {
+                api.get_status().then(({ success, data, msg }) => {
+                    if (!success) {
+                        showStatus(trainStatus, msg || 'error', 'error');
+                        trainBtn.disabled = false;
+                        deleteBtn.disabled = false;
+                        return;
+                    }
+                    cpuStatus.textContent = data.cpu_usage ? `${data.cpu_usage.toFixed(1)}%` : 'N/A';
+                    gpuStatus.textContent = data.gpu_usage ? `${data.gpu_usage.toFixed(1)}%` : 'N/A';
+                    updateProgress(data.progress, data.status_msg);
+                    if (data.training) {
+                        setTimeout(pollStatus, 1000);
+                    } else {
+                        trainBtn.disabled = false;
+                        deleteBtn.disabled = false;
+                    }
+                }).catch(err => {
+                    showStatus(trainStatus, '상태 확인 실패: ' + (err.message || err), 'error');
+                    trainBtn.disabled = false;
+                    deleteBtn.disabled = false;
+                });
+            }
+
             function collect() {
                 return {
                     num_epochs: parseInt(document.getElementById('epochInput').value),
@@ -754,8 +783,8 @@
                 update_config: () => Promise.resolve({}),
                 start_training: () => Promise.resolve({msg: 'started'}),
                 get_status: () => Promise.resolve({data: {message: 'idle'}}),
-                inference: (msg) => Promise.resolve({data: {answer: `Echo: ${msg}`}}), // 기본 에코 응답
-                delete_model: () => Promise.resolve(),
+                infer: (msg) => Promise.resolve({data: {answer: `Echo: ${msg}`}}), // 기본 에코 응답
+                delete_model: () => Promise.resolve({success: true, msg: 'model_deleted'}),
                 get_dataset_info: () => Promise.resolve({data: {size: 0}})
             };
 
@@ -831,14 +860,23 @@
                 const cfg = collect();
                 clearStatus(trainStatus);
                 clearStatus(deleteStatus);
+                trainBtn.disabled = true;
+                deleteBtn.disabled = true;
                 api.update_config(cfg)
                     .then(() => api.start_training())
                     .then(r => {
-                        alert(r.msg);
-                        showStatus(trainStatus, '진행 중', 'info');
+                        if (r && r.success) {
+                            pollStatus();
+                        } else {
+                            showStatus(trainStatus, r.msg, 'error');
+                            trainBtn.disabled = false;
+                            deleteBtn.disabled = false;
+                        }
                     })
                     .catch(err => {
                         showStatus(trainStatus, '모델 학습 실패: ' + (err.message || err), 'error');
+                        trainBtn.disabled = false;
+                        deleteBtn.disabled = false;
                         console.error('train failed', err);
                     });
             });
@@ -860,14 +898,16 @@
             deleteBtn.addEventListener('click', () => {
                 clearStatus(trainStatus);
                 clearStatus(deleteStatus);
-                if (confirm('정말로 모델 파일을 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.')) {
-                    api.delete_model()
-                        .then(r => {
-                            alert(r.msg);
+                api.delete_model()
+                    .then(r => {
+                        if (r && r.success) {
                             showStatus(deleteStatus, r.msg, 'success');
-                        })
-                        .catch(err => showStatus(deleteStatus, '모델 파일 삭제 실패: ' + (err.message || err), 'error'));
-                }
+                            updateProgress(0, 'idle');
+                        } else {
+                            showStatus(deleteStatus, r.msg, 'error');
+                        }
+                    })
+                    .catch(err => showStatus(deleteStatus, '모델 파일 삭제 실패: ' + (err.message || err), 'error'));
             });
 
             // 데이터셋 정보 로드
@@ -888,10 +928,9 @@
                 adjustInputHeight(); // 메시지 전송 후 입력창 높이 초기화
                 messageInput.focus();
 
-                api.inference(msg)
+                api.infer(msg)
                     .then(r => {
-                        if (!r.success) {
-                            alert(r.msg);
+                        if (!r || !r.success) {
                             addMessage('오류: ' + r.msg, 'bot');
                             return;
                         }
@@ -900,7 +939,7 @@
                     })
                     .catch(err => {
                         addMessage('오류 발생: ' + (err.message || err), 'bot');
-                        console.error('inference failed', err);
+                        console.error('infer failed', err);
                     });
             });
 
@@ -911,15 +950,6 @@
                         const d = r && r.data ? r.data : {};
                         cpuStatus.textContent = d.cpu_usage ? `${d.cpu_usage.toFixed(1)}%` : 'N/A';
                         gpuStatus.textContent = d.gpu_usage ? `${d.gpu_usage.toFixed(1)}%` : 'N/A';
-
-                        if (d.running) {
-                            const pct = (d.progress * 100).toFixed(0);
-                            showStatus(trainStatus, `학습 중... ${pct}%`, 'info');
-                        } else if (d.message === 'done') {
-                            showStatus(trainStatus, '학습 완료', 'success');
-                        } else {
-                            showStatus(trainStatus, '모델 유휴 상태.', 'info');
-                        }
                     })
                     .catch(err => {
                         console.error('Status check failed:', err);

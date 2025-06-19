@@ -14,7 +14,7 @@ def test_train_infer_cycle(tmp_path):
     # wait for training to finish
     import time
     for _ in range(20):
-        status = backend.get_status()['data']['message']
+        status = backend.get_status()['data']['status_msg']
         if status.startswith('error') or status == 'done':
             break
         time.sleep(0.1)
