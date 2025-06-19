@@ -3,9 +3,42 @@
 from __future__ import annotations
 
 import json
+import logging
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, List, Tuple
+
+logger = logging.getLogger(__name__)
+
+
+@dataclass
+class Sample:
+    """Raw QA sample as loaded from JSON."""
+
+    question: dict
+    answer: dict
+    concepts: List[str]
+    domain: str
+
+
+def load_all(path: Path) -> List[Sample]:
+    """Load all JSON files under ``path`` and merge into a list."""
+
+    files = sorted(path.glob("*.json"))
+    samples: List[Sample] = []
+    for fp in files:
+        with open(fp, encoding="utf-8") as f:
+            for item in json.load(f):
+                samples.append(
+                    Sample(
+                        question=item.get("question", {}),
+                        answer=item.get("answer", {}),
+                        concepts=item.get("concepts", []),
+                        domain=item.get("domain", ""),
+                    )
+                )
+    logger.info("loaded %d samples from %d files", len(samples), len(files))
+    return samples
 
 try:
     import pandas as pd  # type: ignore
