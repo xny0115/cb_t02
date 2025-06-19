@@ -5,7 +5,10 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Iterable
 
-import torch
+try:
+    import torch  # type: ignore
+except Exception:  # pragma: no cover - optional
+    torch = None
 
 from ..data.loader import QADataset
 
@@ -22,7 +25,9 @@ def build_vocab(dataset: QADataset) -> dict[str, int]:
     return vocab
 
 
-def encode(text: str, vocab: dict[str, int]) -> torch.Tensor:
-    """Convert text to tensor of token ids."""
+def encode(text: str, vocab: dict[str, int]):
+    """Convert text to tensor of token ids or list if torch missing."""
     ids = [vocab.get(t, 0) for t in text.split()] + [vocab["<eos>"]]
+    if torch is None:
+        return ids
     return torch.tensor(ids, dtype=torch.long)

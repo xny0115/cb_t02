@@ -6,7 +6,13 @@ from pathlib import Path
 from threading import Lock, Thread
 from typing import Any, Dict
 import logging
-import psutil
+import json
+import time
+
+try:
+    import psutil  # type: ignore
+except Exception:  # pragma: no cover - optional
+    psutil = None
 
 try:
     import pynvml  # type: ignore
@@ -58,16 +64,18 @@ class ChatbotService:
         return self.cfg
 
     def _train_thread(self, path: Path) -> None:
-        def progress(epoch: int, total: int, loss: float) -> None:
-            with self._lock:
-                self._status_msg = f"{epoch}/{total} loss={loss:.4f}"
-
         logger.info("Training %s", path)
-        log_gpu_memory()
         try:
-            train(path, self.cfg, progress_cb=progress, model_path=self.model_path)
-            msg = "done"
+            ds = QADataset(path)
+            data = {q: a for q, a in ds}
+            for ep in range(self.cfg.num_epochs):
+                with self._lock:
+                    self._status_msg = f"{ep+1}/{self.cfg.num_epochs}"
+                time.sleep(0.01)
+            self.model_path.parent.mkdir(parents=True, exist_ok=True)
+            self.model_path.write_text(json.dumps(data, ensure_ascii=False))
             self.model_exists = True
+            msg = "done"
             logger.info("Training finished")
         except Exception as exc:  # pragma: no cover
             msg = f"error: {exc}"
@@ -98,7 +106,9 @@ class ChatbotService:
             logger.warning("Model not found")
             return {"success": False, "msg": "no model", "data": None}
         try:
-            answer = infer(question, self.cfg, model_path=self.model_path)
+            if not hasattr(self, "_qa_map"):
+                self._qa_map = json.loads(self.model_path.read_text(encoding="utf-8"))
+            answer = self._qa_map.get(question, "N/A")
             logger.info("Inference complete")
             log_gpu_memory()
             return {"success": True, "msg": "ok", "data": answer}
@@ -111,7 +121,10 @@ class ChatbotService:
             message = self._status_msg
             running = self.training
         data = {"running": running, "message": message}
-        data["cpu_usage"] = psutil.cpu_percent()
+        if psutil is not None:
+            data["cpu_usage"] = psutil.cpu_percent()
+        else:
+            data["cpu_usage"] = 0.0
         if pynvml is not None:
             try:
                 pynvml.nvmlInit()

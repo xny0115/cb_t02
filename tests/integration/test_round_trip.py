@@ -20,3 +20,6 @@ def test_train_infer_cycle(tmp_path):
     infer_res = backend.infer('인공지능이란 뭐야?')
     assert infer_res['success']
     assert isinstance(infer_res['data'], str)
+    backend.delete_model()
+    infer_res2 = backend.infer('인공지능이란 뭐야?')
+    assert not infer_res2['success']
