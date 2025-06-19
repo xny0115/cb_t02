@@ -949,7 +949,12 @@
                 div.className = role === 'USER' ? 'user-msg' : 'bot-msg';
                 div.textContent = text;
                 chatHistory.appendChild(div);
-                chatHistory.scrollTop = chatHistory.scrollHeight;
+
+                // === 자동 스크롤 ===
+                // requestAnimationFrame 사용으로 렌더 이후 정확히 하단 이동
+                requestAnimationFrame(()=> {
+                    chatHistory.scrollTop = chatHistory.scrollHeight;
+                });
             }
 
             function onSend(){
