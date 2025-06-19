@@ -1,14 +1,15 @@
 from src.ui.backend import WebBackend
 from src.config import load_config
+from src.service import ChatbotService
 
-backend = WebBackend()
+backend = WebBackend(ChatbotService())
 
 
 def test_train_infer_cycle(tmp_path):
     # update config to run 1 epoch for speed
     cfg = load_config()
     cfg.num_epochs = 1
-    backend.svc.set_config(cfg.__dict__)
+    backend._svc.set_config(cfg.__dict__)
     backend.start_training()
     # wait for training to finish
     import time
