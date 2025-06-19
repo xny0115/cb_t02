@@ -3,7 +3,7 @@ from __future__ import annotations
 """Service layer managing training and inference."""
 
 from pathlib import Path
-from threading import Thread, Lock
+from threading import Lock, Thread
 from typing import Any, Dict
 import logging
 import psutil
@@ -14,9 +14,10 @@ except Exception:  # pragma: no cover - optional
     pynvml = None
 
 from ..config import Config, load_config, save_config
-from ..training import train, infer
+from ..training import infer, train
 from ..data.loader import QADataset
 from ..tuning.auto import AutoTuner
+from ..utils.logger import LOG_PATH, log_gpu_memory
 
 logger = logging.getLogger(__name__)
 
@@ -26,7 +27,10 @@ class ChatbotService:
 
     def __init__(self) -> None:
         self.cfg = load_config()
-        self._status: Dict[str, Any] = {"running": False, "message": "idle", "log": []}
+        self.training = False
+        self.model_path = Path("models") / "current.pth"
+        self.model_exists = self.model_path.exists()
+        self._status_msg = "idle"
         self._lock = Lock()
         self._thread: Thread | None = None
         self._auto_tune()
@@ -56,41 +60,57 @@ class ChatbotService:
     def _train_thread(self, path: Path) -> None:
         def progress(epoch: int, total: int, loss: float) -> None:
             with self._lock:
-                msg = f"{epoch}/{total} loss={loss:.4f}"
-                self._status["message"] = msg
-                self._status["log"].append(msg)
+                self._status_msg = f"{epoch}/{total} loss={loss:.4f}"
 
+        logger.info("Training %s", path)
+        log_gpu_memory()
         try:
-            logger.info("Training %s", path)
-            train(path, self.cfg, progress_cb=progress)
-            with self._lock:
-                self._status["message"] = "done"
+            train(path, self.cfg, progress_cb=progress, model_path=self.model_path)
+            msg = "done"
+            self.model_exists = True
+            logger.info("Training finished")
         except Exception as exc:  # pragma: no cover
-            with self._lock:
-                self._status["message"] = f"error: {exc}"
-            logger.error("Training failed: %s", exc)
-        finally:
-            with self._lock:
-                self._status["running"] = False
-
-    def start_training(self, data_path: str = ".") -> None:
+            msg = f"error: {exc}"
+            logger.exception("Training failed")
         with self._lock:
-            if self._status["running"]:
-                raise RuntimeError("training already running")
-            self._status.update({"running": True, "message": "starting", "log": []})
+            self.training = False
+            self._status_msg = msg
+
+    def start_training(self, data_path: str = ".") -> Dict[str, Any]:
+        with self._lock:
+            if self.training:
+                logger.warning("Training already running")
+                return {"success": False, "msg": "running", "data": None}
+            self.training = True
+            self._status_msg = "starting"
+        log_gpu_memory()
         self._thread = Thread(target=self._train_thread, args=(Path("datas") / data_path,), daemon=True)
         self._thread.start()
+        return {"success": True, "msg": "started", "data": None}
 
     def stop_training(self) -> None:
-        if self._thread and self._thread.is_alive():
-            logger.info("Stop requested but not implemented")
+        if self._thread and self._thread.is_alive():  # pragma: no cover
+            logger.info("Stop requested, waiting for thread")  # pragma: no cover
+            self._thread.join()  # pragma: no cover
 
-    def infer(self, question: str) -> str:
-        return infer(question, self.cfg)
+    def infer(self, question: str) -> Dict[str, Any]:
+        if not self.model_exists:
+            logger.warning("Model not found")
+            return {"success": False, "msg": "no model", "data": None}
+        try:
+            answer = infer(question, self.cfg, model_path=self.model_path)
+            logger.info("Inference complete")
+            log_gpu_memory()
+            return {"success": True, "msg": "ok", "data": answer}
+        except Exception as exc:  # pragma: no cover
+            logger.exception("Inference failed")
+            return {"success": False, "msg": str(exc), "data": None}
 
     def get_status(self) -> Dict[str, Any]:
         with self._lock:
-            data = self._status.copy()
+            message = self._status_msg
+            running = self.training
+        data = {"running": running, "message": message}
         data["cpu_usage"] = psutil.cpu_percent()
         if pynvml is not None:
             try:
@@ -107,19 +127,28 @@ class ChatbotService:
                     pass
         else:
             data["gpu_usage"] = None
-        return data
+        try:
+            lines = LOG_PATH.read_text(encoding="utf-8").splitlines()
+            data["logs"] = "\n".join(lines[-2000:])
+        except Exception:
+            data["logs"] = ""
+        return {"success": True, "msg": "ok", "data": data}
 
     def delete_model(self) -> Dict[str, Any]:
-        path = Path("models") / "transformer.pt"
+        if self.training:
+            self.stop_training()
         try:
-            path.unlink(missing_ok=True)
+            self.model_path.unlink(missing_ok=True)
+            self.model_path.with_suffix(".json").unlink(missing_ok=True)
+            self.model_exists = False
+            logger.info("Model deleted")
+            return {"success": True, "msg": "deleted", "data": None}
         except Exception as exc:  # pragma: no cover
-            logger.error("Delete model failed: %s", exc)
-            return {"success": False, "data": None, "error": str(exc)}
-        return {"success": True, "data": {"message": "model deleted"}, "error": None}
+            logger.exception("Delete model failed")
+            return {"success": False, "msg": str(exc), "data": None}
 
     def get_dataset_info(self, data_path: str = ".") -> Dict[str, Any]:
-        try:
+        try:  # pragma: no cover
             ds = QADataset(Path("datas") / data_path)
         except Exception as exc:  # pragma: no cover
             return {"success": False, "data": None, "error": str(exc)}

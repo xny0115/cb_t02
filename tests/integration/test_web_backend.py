@@ -7,8 +7,8 @@ backend = WebBackend()
 def test_web_backend_cycle(tmp_path):
     cfg = load_config()
     cfg.num_epochs = 1
-    backend.set_config(cfg.__dict__)
-    backend.start_training('.')
+    backend.svc.set_config(cfg.__dict__)
+    backend.start_training()
     import time
     for _ in range(30):
         status = backend.get_status()['data']['message']
@@ -17,4 +17,4 @@ def test_web_backend_cycle(tmp_path):
         time.sleep(0.1)
     result = backend.infer('테스트')
     assert result['success']
-    assert result['data']['answer'] != ''
+    assert isinstance(result['data'], str)

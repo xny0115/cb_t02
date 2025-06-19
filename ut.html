@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>Chatbot</title>
+<style>
+#divChatHistory{height:300px;overflow-y:auto;border:1px solid #888;margin-bottom:8px;padding:4px;}
+#txtUserInput{width:100%;box-sizing:border-box;}
+#log{background:#222;color:#eee;height:200px;overflow:auto;font-size:12px;white-space:pre-wrap;margin-top:8px;padding:4px;}
+</style>
+</head>
+<body>
+<div id="divChatHistory"></div>
+<input id="txtUserInput" type="text" placeholder="메시지 입력" />
+<button id="btnStartTraining">모델 학습 시작</button>
+<button id="btnDeleteModel">모델 파일 삭제</button>
+<div id="status"></div>
+<pre id="log"></pre>
+<script>
+const api=window.pywebview.api;
+function addMsg(t,role){const d=document.getElementById('divChatHistory');const div=document.createElement('div');div.textContent=(role==='user'?'User: ':'Bot: ')+t;d.appendChild(div);d.scrollTop=d.scrollHeight;}
+function infer(){const el=document.getElementById('txtUserInput');const q=el.value.trim();if(!q)return;addMsg(q,'user');el.value='';api.infer(q).then(r=>{if(r.success)addMsg(r.data,'bot');else addMsg('오류: '+r.msg,'bot');});}
+function start_training(){api.start_training().then(r=>alert(r.msg));}
+function delete_model(){api.delete_model().then(r=>alert(r.msg));}
+
+document.getElementById('txtUserInput').addEventListener('keydown',e=>{if(e.key==='Enter')infer();});
+document.getElementById('btnStartTraining').addEventListener('click',start_training);
+document.getElementById('btnDeleteModel').addEventListener('click',delete_model);
+function refresh(){api.get_status().then(r=>{if(r.success){document.getElementById('status').textContent=r.data.message;document.getElementById('log').textContent=r.data.logs;}});}
+setInterval(refresh,2000);
+</script>
+</body>
+</html>

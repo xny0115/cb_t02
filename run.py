@@ -10,5 +10,5 @@ from src.ui.backend import WebBackend
 
 if __name__ == "__main__":
     setup_logger()
-    webview.create_window("Chatbot", "ui.html", js_api=WebBackend())
+    webview.create_window("Chatbot", "ut.html", js_api=WebBackend())
     webview.start(gui="edgechromium", http_server=False)
