@@ -936,7 +936,10 @@
                 const q = userInput.value.trim();
                 if(!q) return;
                 api.infer(q).then(({success,data,msg})=>{
-                    if(!success){ showError(msg); return; }
+                    if(!success || !data){
+                        showError(msg||'BOT 응답이 비었습니다');
+                        return;
+                    }
                     appendChat('USER', q);
                     appendChat('BOT', data);
                     userInput.value='';

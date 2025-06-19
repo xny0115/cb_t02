@@ -18,6 +18,7 @@ _CFG_MAP = {
     'top_k': ('top_k', 10),
     'temperature': ('temperature', 0.7),
     'early_stopping_patience': ('early_stopping_patience', 5),
+    'verbose': ('verbose', False),
 }
 
 def to_config(data: Dict[str, Any]) -> Config:

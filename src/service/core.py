@@ -8,22 +8,20 @@ import time
 import torch
 try:
     import psutil  # type: ignore
-except Exception:  # pragma: no cover - optional
+except Exception:
     psutil = None
 try:
     import pynvml  # type: ignore
-except Exception:  # pragma: no cover - optional
+except Exception:
     pynvml = None
 from ..config import CONFIG_PATH, load_config
 from .utils import to_config, _CFG_MAP
 from ..training import train
-from ..data.loader import QADataset
-from ..tuning.auto import AutoTuner
 from ..utils.logger import LOG_PATH, log_gpu_memory
-from ..utils.vocab import Tokenizer, build_vocab
+from ..utils.vocab import Tokenizer
+from .loader import auto_tune, load_model
 logger = logging.getLogger(__name__)
 class ChatbotService:
-    """Central application service."""
     def __init__(self) -> None:
         self._config = load_config()
         self.training = False
@@ -35,31 +33,10 @@ class ChatbotService:
         self._tokenizer: Tokenizer | None = None
         self._model = None
         self._lock = Lock(); self._thread: Thread | None = None
-        self._auto_tune()
+        auto_tune(self._config)
         if self.model_exists:
-            self._load_model()
+            self._tokenizer, self._model = load_model(self.model_path)
         logger.info("Service initialized")
-    def _auto_tune(self) -> None:
-        try:
-            ds = QADataset(Path("datas"))
-            sugg = AutoTuner(len(ds)).suggest_config()
-            for k, (src, _) in _CFG_MAP.items():
-                if hasattr(sugg, k):
-                    self._config[src] = getattr(sugg, k)
-        except Exception as exc:  # pragma: no cover - best effort
-            logger.warning("Auto tune failed: %s", exc)
-    def _load_model(self) -> None:
-        try:
-            ds = QADataset(Path("datas"))
-            vocab = build_vocab(ds)
-            self._tokenizer = Tokenizer(vocab)
-            from ..model.transformer import Seq2SeqTransformer
-            self._model = Seq2SeqTransformer(vocab_size=len(vocab))
-            self._model.load_state_dict(
-                torch.load(self.model_path, map_location="cpu")
-            )
-        except Exception as exc:  # pragma: no cover - best effort
-            logger.warning("Model load failed: %s", exc)
     def get_config(self) -> Dict[str, Any]:
         return self._config.copy()
     def update_config(self, cfg: Dict[str, Any]) -> Tuple[bool, str]:
@@ -106,8 +83,8 @@ class ChatbotService:
             msg = "done"
             self.model_exists = True
             logger.info("Training complete")
-            self._load_model()
-        except Exception as exc:  # pragma: no cover
+            self._tokenizer, self._model = load_model(self.model_path)
+        except Exception as exc:
             logger.exception("Training failed")
             with self._lock:
                 self._status_msg = f"error: {exc}"
@@ -120,6 +97,9 @@ class ChatbotService:
             self._status_msg = msg
             self._progress = 1.0 if msg == "done" else 0.0
     def start_training(self, data_path: str = ".") -> Dict[str, Any]:
+        logging.getLogger().setLevel(
+            logging.DEBUG if self._config.get("verbose", False) else logging.INFO
+        )
         with self._lock:
             if self.training:
                 logger.warning("Training already running")
@@ -132,9 +112,9 @@ class ChatbotService:
         self._thread.start()
         return {"success": True, "msg": "started", "data": None}
     def stop_training(self) -> None:
-        if self._thread and self._thread.is_alive():  # pragma: no cover
-            logger.info("Stop requested, waiting for thread")  # pragma: no cover
-            self._thread.join()  # pragma: no cover
+        if self._thread and self._thread.is_alive():
+            logger.info("Stop requested, waiting for thread")
+            self._thread.join()
     def infer(self, text: str) -> Dict[str, Any]:
         logger.info("infer | model_exists=%s", self.model_exists)
         if not self.model_exists or self._model is None or self._tokenizer is None:
@@ -144,8 +124,12 @@ class ChatbotService:
             logger.info("Device selected: %s", device)
             self._model.to(device).eval()
             tokens = self._tokenizer.encode(text).unsqueeze(1).to(device)
-            output = self._model.generate(tokens, max_new_tokens=64)
-            answer = self._tokenizer.decode(output.squeeze().tolist()[1:])
+            out = self._model.generate(tokens, max_new_tokens=64)
+            answer = self._tokenizer.decode(out.squeeze().tolist()[1:]).strip()
+            if not answer:
+                logger.warning("empty answer | prompt=%s", text)
+                return {"success": False, "msg": "empty_answer", "data": None}
+            logger.debug("infer result: %s", answer[:60])
             return {"success": True, "msg": "", "data": answer}
         except Exception as exc:
             logger.exception("infer failed")
@@ -167,13 +151,13 @@ class ChatbotService:
             data["cpu_usage"] = psutil.cpu_percent()
         else:
             data["cpu_usage"] = 0.0
-        if pynvml is not None:  # pragma: no cover - optional GPU info
+        if pynvml is not None:
             try:
                 pynvml.nvmlInit()
                 handle = pynvml.nvmlDeviceGetHandleByIndex(0)
                 util = pynvml.nvmlDeviceGetUtilizationRates(handle)
                 data["gpu_usage"] = float(util.gpu)
-            except Exception:  # pragma: no cover
+            except Exception:
                 data["gpu_usage"] = None
             finally:
                 try:
@@ -199,13 +183,7 @@ class ChatbotService:
                 self._status_msg = "model_deleted"
                 logger.info("Model deleted")
                 return True
-            except Exception:  # pragma: no cover
+            except Exception:
                 logger.exception("Delete model failed")
                 return False
         return False
-    def get_dataset_info(self, data_path: str = ".") -> Dict[str, Any]:
-        try:  # pragma: no cover
-            ds = QADataset(Path("datas") / data_path)
-        except Exception as exc:  # pragma: no cover
-            return {"success": False, "data": None, "error": str(exc)}
-        return {"success": True, "data": {"size": len(ds)}, "error": None}
