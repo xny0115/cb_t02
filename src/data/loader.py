@@ -22,22 +22,31 @@ class Sample:
 
 
 def load_all(path: Path) -> List[Sample]:
-    """Load all JSON files under ``path`` and merge into a list."""
+    """Recursively load all JSON files under ``path``."""
 
-    files = sorted(path.glob("*.json"))
+    root = path.resolve()
+    files = list(root.rglob("*.json"))
     samples: List[Sample] = []
     for fp in files:
         with open(fp, encoding="utf-8") as f:
-            for item in json.load(f):
-                samples.append(
-                    Sample(
-                        question=item.get("question", {}),
-                        answer=item.get("answer", {}),
-                        concepts=item.get("concepts", []),
-                        domain=item.get("domain", ""),
-                    )
-                )
-    logger.info("loaded %d samples from %d files", len(samples), len(files))
+            try:
+                data = json.load(f)
+                if isinstance(data, list):
+                    for item in data:
+                        samples.append(
+                            Sample(
+                                question=item.get("question", {}),
+                                answer=item.get("answer", {}),
+                                concepts=item.get("concepts", []),
+                                domain=item.get("domain", ""),
+                            )
+                        )
+            except Exception as exc:
+                logger.warning("skip %s | %s", fp.name, exc)
+    logger.info("files used: %s", ", ".join(p.name for p in files))
+    logger.info(
+        "dataset loaded: %d samples from %d files", len(samples), len(files)
+    )
     return samples
 
 try:

@@ -686,6 +686,9 @@
             const sendBtn = document.getElementById('sendBtn');
             const userInput = document.getElementById('userInput');
             const chatHistory = document.getElementById('chatHistory');
+            new MutationObserver(() => {
+                chatHistory.scrollTop = chatHistory.scrollHeight;
+            }).observe(chatHistory, { childList: true });
             const trainStatus = document.getElementById('trainStatus');
             const cpuStatus = document.getElementById('cpuStatus');
             const gpuStatus = document.getElementById('gpuStatus');
