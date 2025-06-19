@@ -49,13 +49,5 @@ Docker, WSL, 또는 기타 가상화 환경을 사용하지 마세요. 프로젝
 - Git 사용법과 충돌 해결 절차에 대해 전원 교육을 실시하고 숙지 여부를 점검한다.
   
 ** 기타 긴급 지시항으로 UI.html 파일 수정시 디자인과 스타일 ui의 외관적 및 디자인 효과들은 잘못수정되지 않도록 각별한 주의가 필요함.
-** 본지침은 사용자외에 절대 수정하지말것. (매우중요)
 
-**If any violation is found, immediately refactor and push again.**
-
-## Environment Variables
-
-- `PYTHONIOENCODING` - default `utf-8`
-- `SOYNLP_DATA_DIR` - optional path for soynlp cache
-
-Use `scripts/start_dev.sh` to launch the API server during development.
+** 본지침은 사용자외에 절대 수정하지말것.(매우중요) 단, 사용자가 우선지침이라고 지시하는 경우에는 본 리드미 지침을 우회하여 작업을 진행할수잇음.
