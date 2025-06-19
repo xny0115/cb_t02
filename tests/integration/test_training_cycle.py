@@ -3,7 +3,7 @@ from src.service.core import ChatbotService
 
 def test_training_cycle(tmp_path):
     svc = ChatbotService()
-    svc.cfg.num_epochs = 1
+    svc.update_config({'epochs': 1})
     res = svc.start_training()
     assert res["success"]
     time.sleep(3)

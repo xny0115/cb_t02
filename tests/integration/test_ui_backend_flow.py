@@ -6,7 +6,7 @@ from pathlib import Path
 
 def test_ui_backend_flow(tmp_path):
     backend = WebBackend(ChatbotService())
-    backend._svc.cfg.num_epochs = 1
+    backend.set_config({'epochs': 1})
     out = backend.start_training()
     assert out["success"]
     time.sleep(3)

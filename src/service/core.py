@@ -1,8 +1,8 @@
 from __future__ import annotations
-"""Service layer managing training and inference."""
 from pathlib import Path
 from threading import Lock, Thread
-from typing import Any, Dict
+from typing import Any, Dict, Tuple
+import json
 import logging
 import time
 import torch
@@ -14,7 +14,8 @@ try:
     import pynvml  # type: ignore
 except Exception:  # pragma: no cover - optional
     pynvml = None
-from ..config import Config, load_config, save_config
+from ..config import CONFIG_PATH, load_config
+from .utils import to_config, _CFG_MAP
 from ..training import train
 from ..data.loader import QADataset
 from ..tuning.auto import AutoTuner
@@ -24,7 +25,7 @@ logger = logging.getLogger(__name__)
 class ChatbotService:
     """Central application service."""
     def __init__(self) -> None:
-        self.cfg = load_config()
+        self._config = load_config()
         self.training = False
         self.model_path = Path("models") / "current.pth"
         self.model_exists = self.model_path.exists()
@@ -33,24 +34,21 @@ class ChatbotService:
         self._last_loss = 0.0
         self._tokenizer: Tokenizer | None = None
         self._model = None
-        self._lock = Lock()
-        self._thread: Thread | None = None
+        self._lock = Lock(); self._thread: Thread | None = None
         self._auto_tune()
         if self.model_exists:
             self._load_model()
         logger.info("Service initialized")
     def _auto_tune(self) -> None:
-        """Update config suggestion based on dataset and hardware."""
         try:
             ds = QADataset(Path("datas"))
             sugg = AutoTuner(len(ds)).suggest_config()
-            for k, v in sugg.__dict__.items():
-                if hasattr(self.cfg, k):
-                    setattr(self.cfg, k, v)
+            for k, (src, _) in _CFG_MAP.items():
+                if hasattr(sugg, k):
+                    self._config[src] = getattr(sugg, k)
         except Exception as exc:  # pragma: no cover - best effort
             logger.warning("Auto tune failed: %s", exc)
     def _load_model(self) -> None:
-        """Load model and tokenizer from disk."""
         try:
             ds = QADataset(Path("datas"))
             vocab = build_vocab(ds)
@@ -62,16 +60,20 @@ class ChatbotService:
             )
         except Exception as exc:  # pragma: no cover - best effort
             logger.warning("Model load failed: %s", exc)
-    def get_config(self) -> Config:
-        return self.cfg
-    def set_config(self, data: Dict[str, Any]) -> Config:
-        for k, v in data.items():
-            if hasattr(self.cfg, k):
-                setattr(self.cfg, k, v)
-        save_config(self.cfg)
-        return self.cfg
+    def get_config(self) -> Dict[str, Any]:
+        return self._config.copy()
+    def update_config(self, cfg: Dict[str, Any]) -> Tuple[bool, str]:
+        try:
+            with self._lock:
+                self._config.update(cfg)
+                json.dump(self._config, open(CONFIG_PATH, "w"), indent=2)
+            return True, "saved"
+        except Exception as exc:
+            logger.exception("config save failed")
+            return False, str(exc)
     def train(self, path: Path) -> None:
         """Run the training process synchronously."""
+        cfg = to_config(self._config)
         last = time.time()
         def progress(epoch: int, total: int, loss: float) -> None:
             nonlocal last
@@ -87,7 +89,7 @@ class ChatbotService:
         logger.info("Device selected: %s", device)
         log_gpu_memory()
         try:
-            train(path, self.cfg, progress_cb=progress, model_path=self.model_path)
+            train(path, cfg, progress_cb=progress, model_path=self.model_path)
             if not self.model_path.exists() or self.model_path.stat().st_size < 1_000_000:
                 raise RuntimeError("모델 저장 실패: 생성 실패 또는 용량 미달")
             msg = "done"
@@ -106,7 +108,6 @@ class ChatbotService:
             self.training = False
             self._status_msg = msg
             self._progress = 1.0 if msg == "done" else 0.0
-
     def start_training(self, data_path: str = ".") -> Dict[str, Any]:
         with self._lock:
             if self.training:
@@ -174,8 +175,8 @@ class ChatbotService:
             data["logs"] = "\n".join(lines[-2000:])
         except Exception:
             data["logs"] = ""
+        data["current_config"] = self._config.copy()
         return {"success": True, "msg": "ok", "data": data}
-
     def delete_model(self) -> bool:
         if self.training:
             self.stop_training()

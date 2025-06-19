@@ -3,7 +3,7 @@ from src.service.core import ChatbotService
 
 def test_status_updates(tmp_path):
     svc = ChatbotService()
-    svc.cfg.num_epochs = 1
+    svc.update_config({'epochs': 1})
     svc.start_training()
     seen = False
     for _ in range(20):

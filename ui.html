@@ -879,7 +879,7 @@
                 clearStatus(deleteStatus);
                 trainBtn.disabled = true;
                 deleteBtn.disabled = true;
-                api.update_config(cfg)
+                api.set_config(cfg)
                     .then(() => api.start_training())
                     .then(r => {
                         if (r.success) {
@@ -903,7 +903,7 @@
                 const cfg = collect();
                 clearStatus(trainStatus);
                 clearStatus(deleteStatus);
-                api.update_config(cfg)
+                api.set_config(cfg)
                     .then(() => showStatus(trainStatus, '설정이 저장되었습니다!', 'success'))
                     .catch(err => {
                         showStatus(trainStatus, '설정 저장 실패: ' + (err.message || err), 'error');
@@ -943,10 +943,10 @@
                     if (!success) { showStatus(trainStatus, msg, 'error'); return; }
                     addMessage(q, 'user');
                     addMessage(data, 'bot');
-                });
-                messageInput.value = '';
-                adjustInputHeight();
-                messageInput.focus();
+                    messageInput.value = '';
+                    adjustInputHeight();
+                    messageInput.focus();
+                }).catch(err => showStatus(trainStatus, err.message || err, 'error'));
             }
             sendBtn.addEventListener('click', onSend);
 
@@ -980,7 +980,7 @@
             };
         }
         window.addEventListener("pywebviewready", () => {
-            ["start_training", "delete_model", "infer", "get_status"].forEach(m => {
+            ["start_training", "delete_model", "infer", "get_status", "set_config"].forEach(m => {
                 api[m] = wrap(m, api[m]);
             });
         });

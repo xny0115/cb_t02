@@ -2,19 +2,36 @@ from __future__ import annotations
 
 """Application configuration management."""
 
-from dataclasses import dataclass, asdict
 from pathlib import Path
+from typing import Any, Dict
+import json
+from dataclasses import dataclass
 
-from .utils.persist import load_json, save_json
+from .utils.persist import load_json
 
 CONFIG_PATH = Path("configs/current.json")
+
+DEFAULT_CONFIG: Dict[str, Any] = {
+    "epochs": 20,
+    "batch_size": 32,
+    "lr": 1e-3,
+    "dropout_ratio": 0.1,
+    "warmup_steps": 0,
+    "max_sequence_length": 128,
+    "num_heads": 4,
+    "num_encoder_layers": 2,
+    "num_decoder_layers": 2,
+    "model_dim": 128,
+    "ff_dim": 512,
+    "top_k": 10,
+    "temperature": 0.7,
+    "early_stopping_patience": 5,
+}
 
 
 @dataclass
 class Config:
-    """Model and training configuration."""
-
-    num_epochs: int = 10
+    num_epochs: int = 20
     batch_size: int = 32
     learning_rate: float = 1e-3
     dropout_ratio: float = 0.1
@@ -30,14 +47,16 @@ class Config:
     early_stopping_patience: int = 5
 
 
-def load_config() -> Config:
+def load_config() -> Dict[str, Any]:
     """Load configuration from disk."""
     data = load_json(CONFIG_PATH)
+    cfg = DEFAULT_CONFIG.copy()
     if data:
-        return Config(**data)
-    return Config()
+        cfg.update(data)
+    return cfg
 
 
-def save_config(cfg: Config) -> None:
+def save_config(cfg: Dict[str, Any]) -> None:
     """Persist configuration to disk."""
-    save_json(asdict(cfg), CONFIG_PATH)
+    CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
+    json.dump(cfg, open(CONFIG_PATH, "w"), indent=2)

@@ -7,8 +7,8 @@ backend = WebBackend(ChatbotService())
 
 def test_web_backend_cycle(tmp_path):
     cfg = load_config()
-    cfg.num_epochs = 1
-    backend._svc.set_config(cfg.__dict__)
+    cfg['epochs'] = 1
+    backend.set_config(cfg)
     backend.start_training()
     import time
     for _ in range(30):
