@@ -17,6 +17,7 @@ from .config import load_config, save_config
 from .training import train, infer
 from .data.loader import QADataset
 from .tuning.auto import AutoTuner
+from .utils.logger import setup_logger
 
 logger = logging.getLogger(__name__)
 
@@ -25,6 +26,7 @@ class Backend:
     """Simple in-process API for the webview UI."""
 
     def __init__(self) -> None:
+        setup_logger()
         self._cfg = load_config()
         self._auto_tune()
         self._state_lock = Lock()
