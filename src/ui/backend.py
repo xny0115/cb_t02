@@ -8,19 +8,21 @@ from ..service import ChatbotService
 
 
 class WebBackend:
-    """Expose methods for the web UI."""
+    """Expose limited methods for the web UI."""
 
-    def __init__(self) -> None:
-        self.svc = ChatbotService()
+    __slots__ = ("_svc",)
+
+    def __init__(self, svc: ChatbotService) -> None:
+        self._svc = svc
 
     def start_training(self) -> Dict[str, Any]:
-        return self.svc.start_training()
+        return self._svc.start_training()
 
     def delete_model(self) -> Dict[str, Any]:
-        return self.svc.delete_model()
+        return self._svc.delete_model()
 
     def infer(self, text: str) -> Dict[str, Any]:
-        return self.svc.infer(text)
+        return self._svc.infer(text)
 
     def get_status(self) -> Dict[str, Any]:
-        return self.svc.get_status()
+        return self._svc.get_status()

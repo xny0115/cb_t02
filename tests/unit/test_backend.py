@@ -1,13 +1,14 @@
 from src.ui.backend import WebBackend
 from src.config import load_config
+from src.service import ChatbotService
 import time
 
 
 def test_backend_cycle(tmp_path):
-    backend = WebBackend()
+    backend = WebBackend(ChatbotService())
     cfg = load_config()
     cfg.num_epochs = 1
-    backend.svc.set_config(cfg.__dict__)
+    backend._svc.set_config(cfg.__dict__)
     res = backend.start_training()
     assert res['success']
     while True:

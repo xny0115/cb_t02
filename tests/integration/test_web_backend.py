@@ -1,13 +1,14 @@
 from src.ui.backend import WebBackend
 from src.config import load_config
+from src.service import ChatbotService
 
-backend = WebBackend()
+backend = WebBackend(ChatbotService())
 
 
 def test_web_backend_cycle(tmp_path):
     cfg = load_config()
     cfg.num_epochs = 1
-    backend.svc.set_config(cfg.__dict__)
+    backend._svc.set_config(cfg.__dict__)
     backend.start_training()
     import time
     for _ in range(30):
