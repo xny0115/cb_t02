@@ -12,7 +12,6 @@ import json
 
 LOG_DIR = Path("logs")
 LOG_PATH = LOG_DIR / f"{datetime.now():%y%m%d_%H%M}.json"
-FMT = "[%(asctime)s] %(levelname)s %(module)s:%(funcName)s - %(message)s"
 
 
 class JsonFormatter(Formatter):
