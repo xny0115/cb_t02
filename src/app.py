@@ -43,6 +43,18 @@ def status() -> Dict[str, Any]:
     return {"success": True, "data": service.get_status(), "error": None}
 
 
+@app.post("/delete")
+def delete() -> Dict[str, Any]:
+    """Remove current model file."""
+    return service.delete_model()
+
+
+@app.get("/dataset")
+def dataset_info() -> Dict[str, Any]:
+    """Return dataset statistics."""
+    return service.get_dataset_info()
+
+
 class Backend:
     """Used by tests and webview."""
 

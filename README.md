@@ -53,6 +53,22 @@ Docker, WSL, 또는 기타 가상화 환경을 사용하지 마세요. 프로젝
 
 **If any violation is found, immediately refactor and push again.**
 
+## Running the Application
+
+Run the desktop interface with:
+
+```bash
+python run.py
+```
+
+To use `ui.html` in a regular browser, start the FastAPI server:
+
+```bash
+uvicorn src.app:app --reload
+```
+
+All training and model management features require one of these servers.
+
 ## Environment Variables
 
 - `PYTHONIOENCODING` - default `utf-8`

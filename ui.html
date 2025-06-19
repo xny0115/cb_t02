@@ -778,15 +778,20 @@
                 mainContainer.scrollTop = mainContainer.scrollHeight;
             }
 
-            const api = window.pywebview && window.pywebview.api ? window.pywebview.api : {
-                get_config: () => Promise.resolve({data: {}}),
-                update_config: () => Promise.resolve({}),
-                start_training: () => Promise.resolve({msg: 'started'}),
-                get_status: () => Promise.resolve({data: {message: 'idle'}}),
-                inference: (msg) => Promise.resolve({data: {answer: `Echo: ${msg}`}}), // 기본 에코 응답
-                delete_model: () => Promise.resolve(),
-                get_dataset_info: () => Promise.resolve({data: {size: 0}})
-            };
+            const api = window.pywebview && window.pywebview.api ? window.pywebview.api : (() => {
+                const base = 'http://localhost:8000';
+                const j = r => r.json();
+                const post = (url, data) => fetch(base + url, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: data}).then(j);
+                return {
+                    get_config: () => fetch(base + '/config').then(j),
+                    update_config: cfg => post('/config', JSON.stringify(cfg)),
+                    start_training: () => post('/train'),
+                    get_status: () => fetch(base + '/status').then(j),
+                    inference: msg => post('/infer', JSON.stringify({question: msg})),
+                    delete_model: () => post('/delete'),
+                    get_dataset_info: () => fetch(base + '/dataset').then(j)
+                };
+            })();
 
             // 초기 설정 로드
             api.get_config().then(r => {
