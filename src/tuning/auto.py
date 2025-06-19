@@ -2,8 +2,14 @@
 
 from __future__ import annotations
 
-import psutil
-import torch
+try:
+    import psutil  # type: ignore
+except Exception:  # pragma: no cover - optional
+    psutil = None
+try:
+    import torch
+except Exception:  # pragma: no cover - optional
+    torch = None
 from ..config import Config
 
 
@@ -12,8 +18,14 @@ class AutoTuner:
 
     def __init__(self, dataset_size: int) -> None:
         self.dataset_size = dataset_size
-        self.device = "cuda" if torch.cuda.is_available() else "cpu"
-        self.mem_total = psutil.virtual_memory().total // (1024**3)
+        if torch is not None and torch.cuda.is_available():
+            self.device = "cuda"
+        else:
+            self.device = "cpu"
+        if psutil is not None:
+            self.mem_total = psutil.virtual_memory().total // (1024**3)
+        else:
+            self.mem_total = 0
 
     def suggest_config(self) -> Config:
         batch_size = 4

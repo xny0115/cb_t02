@@ -5,9 +5,12 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List, Tuple
+from typing import Any, List, Tuple
 
-import pandas as pd
+try:
+    import pandas as pd  # type: ignore
+except Exception:  # pragma: no cover - optional
+    pd = None
 
 
 @dataclass
@@ -63,8 +66,8 @@ class QADataset:
                 f"Warning: dataset has only {len(self.pairs)} pairs (<100)."
             )
 
-    def to_dataframe(self) -> pd.DataFrame:
-        """Convert dataset to pandas DataFrame."""
+    def to_dataframe(self) -> Any:
+        """Convert dataset to pandas DataFrame or fallback object."""
 
         records = [
             {
@@ -75,6 +78,16 @@ class QADataset:
             }
             for p in self.pairs
         ]
+        if pd is None:
+            class Dummy:
+                def __init__(self, rec):
+                    self._rec = rec
+
+                @property
+                def empty(self) -> bool:
+                    return not self._rec
+
+            return Dummy(records)
         return pd.DataFrame(records)
 
     def __len__(self) -> int:

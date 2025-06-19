@@ -5,10 +5,11 @@ from __future__ import annotations
 import logging
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
+from datetime import datetime
 
 
 LOG_DIR = Path("logs")
-LOG_PATH = LOG_DIR / "app.log"
+LOG_PATH = LOG_DIR / f"{datetime.now():%y%m%d_%H%M}.json"
 FMT = "[%(asctime)s] %(levelname)s %(module)s:%(funcName)s - %(message)s"
 
 

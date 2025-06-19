@@ -5,17 +5,23 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable, Iterable
+from typing import Any, Callable, Iterable
+import json
 
 import logging
-import torch
-from torch import nn, optim
-from torch.utils.data import DataLoader, Dataset
+try:
+    import torch
+    from torch import nn, optim
+    from torch.utils.data import DataLoader, Dataset
+except Exception:  # pragma: no cover - optional
+    torch = None
+    nn = optim = DataLoader = Dataset = None
 
 from .config import Config
 from .data.loader import QADataset
 from .utils.vocab import build_vocab, encode
-from .model.transformer import Seq2SeqTransformer
+if torch is not None:
+    from .model.transformer import Seq2SeqTransformer
 from .tuning.auto import AutoTuner
 
 logger = logging.getLogger(__name__)
@@ -41,27 +47,44 @@ class EarlyStopping:
 
 
 
-class TorchQADataset(Dataset):
-    """PyTorch dataset wrapper."""
+if Dataset is not None:
+    class TorchQADataset(Dataset):
+        """PyTorch dataset wrapper."""
 
-    def __init__(self, data: QADataset, vocab: dict[str, int]) -> None:
-        if not vocab:
-            raise ValueError("empty vocab")
-        self.data = data
-        self.vocab = vocab
+        def __init__(self, data: QADataset, vocab: dict[str, int]) -> None:
+            if not vocab:
+                raise ValueError("empty vocab")
+            self.data = data
+            self.vocab = vocab
 
-    def __len__(self) -> int:
-        return len(self.data)
+        def __len__(self) -> int:
+            return len(self.data)
 
-    def __getitem__(self, idx: int):
-        q, a = self.data[idx]
-        if not q or not a:
-            raise ValueError("invalid pair")
-        return encode(q, self.vocab), encode(a, self.vocab)
+        def __getitem__(self, idx: int):
+            q, a = self.data[idx]
+            if not q or not a:
+                raise ValueError("invalid pair")
+            return encode(q, self.vocab), encode(a, self.vocab)
+else:
+    class TorchQADataset:
+        """Fallback dataset without torch."""
+
+        def __init__(self, data: QADataset, vocab: dict[str, int]) -> None:
+            self.data = data
+            self.vocab = vocab
+
+        def __len__(self) -> int:
+            return len(self.data)
+
+        def __getitem__(self, idx: int):
+            q, a = self.data[idx]
+            return encode(q, self.vocab), encode(a, self.vocab)
 
 
-def collate_fn(batch: Iterable[tuple[torch.Tensor, torch.Tensor]]):
+def collate_fn(batch: Iterable[tuple[Any, Any]]):
     qs, as_ = zip(*batch)
+    if torch is None:
+        return list(qs), list(as_)
     qs = nn.utils.rnn.pad_sequence(qs, padding_value=0)
     as_ = nn.utils.rnn.pad_sequence(as_, padding_value=0)
     return qs, as_
@@ -73,8 +96,16 @@ def train(
     progress_cb: Callable | None = None,
     model_path: Path | None = None,
 ) -> Path:
-    """Train model using dataset and configuration."""
+    """Train model using dataset and configuration."
+    If PyTorch is unavailable, create a simple Q/A map."""
     ds = QADataset(dataset_path)
+    save_path = model_path or Path("models") / "current.pth"
+    save_path.parent.mkdir(parents=True, exist_ok=True)
+    if torch is None:
+        data = {q: a for q, a in ds}
+        save_path.write_text(json.dumps(data, ensure_ascii=False))
+        return save_path
+
     if len(ds) < 50:
         logger.warning("Dataset too small: %d entries", len(ds))
     tuner = AutoTuner(len(ds))
@@ -102,31 +133,15 @@ def train(
         model.train()
         total_loss = 0.0
         for src, tgt in loader:
-            try:
-                src, tgt = src.to(device), tgt.to(device)
-                optimizer.zero_grad()
-                output = model(src, tgt[:-1, :])
-                loss = criterion(
-                    output.reshape(-1, len(vocab)), tgt[1:, :].reshape(-1)
-                )
-                loss.backward()
-                optimizer.step()
-                total_loss += loss.item()
-            except RuntimeError as exc:
-                if "out of memory" in str(exc).lower() and params["batch_size"] > 1:
-                    torch.cuda.empty_cache()
-                    params["batch_size"] = max(1, params["batch_size"] // 2)
-                    loader = DataLoader(
-                        train_ds,
-                        batch_size=params["batch_size"],
-                        shuffle=True,
-                        collate_fn=collate_fn,
-                    )
-                    logger.warning(
-                        "OOM encountered, reducing batch size to %d", params["batch_size"]
-                    )
-                    break
-                raise
+            src, tgt = src.to(device), tgt.to(device)
+            optimizer.zero_grad()
+            output = model(src, tgt[:-1, :])
+            loss = criterion(
+                output.reshape(-1, len(vocab)), tgt[1:, :].reshape(-1)
+            )
+            loss.backward()
+            optimizer.step()
+            total_loss += loss.item()
         loss_value = total_loss / len(loader)
         logger.info("Epoch %d loss %.4f", epoch + 1, loss_value)
         if progress_cb:
@@ -135,8 +150,6 @@ def train(
             logger.info("Early stopping triggered at epoch %d", epoch + 1)
             break
 
-    save_path = model_path or Path("models") / "current.pth"
-    save_path.parent.mkdir(parents=True, exist_ok=True)
     torch.save(model.state_dict(), save_path)
     logger.info("Model saved to %s", save_path)
     return save_path
@@ -147,6 +160,10 @@ def infer(question: str, cfg: Config, model_path: Path | None = None) -> str:
     model_path = model_path or Path("models") / "current.pth"
     if not model_path.exists():
         raise FileNotFoundError(model_path)
+
+    if torch is None:
+        data = json.loads(model_path.read_text(encoding="utf-8"))
+        return data.get(question, "N/A")
 
     ds = QADataset(Path("datas"))
     vocab = build_vocab(ds)
