@@ -48,15 +48,19 @@ class Seq2SeqTransformer(nn.Module):
         return self.fc_out(output)
 
     @torch.no_grad()
-    def generate(self, src: torch.Tensor, max_new_tokens: int = 64) -> torch.Tensor:
-        """Greedy decoding helper."""
+    def generate(
+        self, src: torch.Tensor, max_new_tokens: int = 64, eos_id: int = 1
+    ) -> torch.Tensor:
+        """Greedy decoding helper with safety limits."""
         device = next(self.parameters()).device
-        tgt = torch.tensor([[1]], dtype=torch.long, device=device)
-        for _ in range(max_new_tokens):
+        tgt = torch.tensor([[eos_id]], dtype=torch.long, device=device)
+        step = 0
+        while True:
             out = self(src.to(device), tgt)
             token = int(out[-1, 0].argmax())
             tgt = torch.cat([tgt, torch.tensor([[token]], device=device)])
-            if token == 1:
+            step += 1
+            if step >= max_new_tokens or token == eos_id:
                 break
         return tgt
 

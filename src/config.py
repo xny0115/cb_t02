@@ -26,6 +26,7 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     "top_k": 10,
     "temperature": 0.7,
     "early_stopping_patience": 5,
+    "verbose": False,
 }
 
 
@@ -45,6 +46,7 @@ class Config:
     top_k: int = 10
     temperature: float = 0.7
     early_stopping_patience: int = 5
+    verbose: bool = False
 
 
 def load_config() -> Dict[str, Any]:

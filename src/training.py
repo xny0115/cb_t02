@@ -119,7 +119,7 @@ def train(
     for epoch in range(params["epochs"]):
         model.train()
         total_loss = 0.0
-        for src, tgt in loader:
+        for step, (src, tgt) in enumerate(loader, start=1):
             src, tgt = src.to(device), tgt.to(device)
             optimizer.zero_grad()
             output = model(src, tgt[:-1, :])
@@ -129,11 +129,14 @@ def train(
             loss.backward()
             optimizer.step()
             total_loss += loss.item()
-        loss_value = total_loss / len(loader)
-        logger.info("Epoch %d loss %.4f", epoch + 1, loss_value)
+            logger.debug("step %d loss %.4f", step, loss.item())
+        epoch_loss = total_loss / len(loader)
+        logger.info(
+            "epoch %d/%d | loss=%.4f", epoch + 1, params["epochs"], epoch_loss
+        )
         if progress_cb:
-            progress_cb(epoch + 1, params["epochs"], loss_value)
-        if stopper.step(loss_value):
+            progress_cb(epoch + 1, params["epochs"], epoch_loss)
+        if stopper.step(epoch_loss):
             logger.info("Early stopping triggered at epoch %d", epoch + 1)
             break
 
