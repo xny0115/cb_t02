@@ -837,7 +837,8 @@
                         return api.start_train('.');
                     })
                     .then(r => {
-                        showStatus(trainStatus, r.data.message || '모델 학습 완료!', 'success');
+                        const msg = r && r.data ? r.data.message : null;
+                        showStatus(trainStatus, msg || '모델 학습 완료!', 'success');
                     })
                     .catch(err => {
                         showStatus(trainStatus, '모델 학습 실패: ' + (err.message || err), 'error');
@@ -864,14 +865,20 @@
                 clearStatus(deleteStatus);
                 if (confirm('정말로 모델 파일을 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.')) {
                     api.delete_model()
-                        .then(r => showStatus(deleteStatus, r.data.message || '모델 파일이 삭제되었습니다.', 'success'))
+                        .then(r => {
+                            const msg = r && r.data ? r.data.message : null;
+                            showStatus(deleteStatus, msg || '모델 파일이 삭제되었습니다.', 'success');
+                        })
                         .catch(err => showStatus(deleteStatus, '모델 파일 삭제 실패: ' + (err.message || err), 'error'));
                 }
             });
 
             // 데이터셋 정보 로드
             api.get_dataset_info('.')
-                .then(r => showStatus(datasetInfo, `데이터셋 크기: ${r.data.size} 문장`, 'info'))
+                .then(r => {
+                    const size = r && r.data ? r.data.size : 0;
+                    showStatus(datasetInfo, `데이터셋 크기: ${size} 문장`, 'info');
+                })
                 .catch(err => showStatus(datasetInfo, '데이터셋 정보 로드 실패: ' + (err.message || err), 'error'));
 
 
@@ -886,7 +893,8 @@
 
                 api.inference(msg)
                     .then(r => {
-                        addMessage(r.data.answer, 'bot');
+                        const ans = r && r.data ? r.data.answer : '응답 없음';
+                        addMessage(ans, 'bot');
                     })
                     .catch(err => {
                         addMessage('오류 발생: ' + (err.message || err), 'bot');
@@ -898,13 +906,13 @@
             setInterval(() => {
                 api.get_status()
                     .then(r => {
-                        // CPU 및 GPU 상태 업데이트 (예시 데이터)
-                        cpuStatus.textContent = r.data.cpu_usage ? `${r.data.cpu_usage.toFixed(1)}%` : 'N/A';
-                        gpuStatus.textContent = r.data.gpu_usage ? `${r.data.gpu_usage.toFixed(1)}%` : 'N/A';
+                        const d = r && r.data ? r.data : {};
+                        cpuStatus.textContent = d.cpu_usage ? `${d.cpu_usage.toFixed(1)}%` : 'N/A';
+                        gpuStatus.textContent = d.gpu_usage ? `${d.gpu_usage.toFixed(1)}%` : 'N/A';
 
                         // 학습 상태 메시지 업데이트
-                        if (r.data.message && r.data.message !== 'idle') {
-                            showStatus(trainStatus, r.data.message, 'info');
+                        if (d.message && d.message !== 'idle') {
+                            showStatus(trainStatus, d.message, 'info');
                         } else if (trainStatus.textContent.includes('학습을 시작합니다...')) {
                             // 학습 시작 메시지가 남아있다면, 학습 완료 또는 유휴 상태로 변경
                             showStatus(trainStatus, '모델 유휴 상태.', 'info');

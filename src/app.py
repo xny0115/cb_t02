@@ -142,12 +142,17 @@ class Backend:
         """Remove saved model file if present."""
         path = Path("models") / "transformer.pt"
         try:
+            logger.info("Delete model requested")
             path.unlink(missing_ok=True)
             logger.info("Model file deleted")
         except Exception as exc:  # pragma: no cover - OS level errors
             logger.error("Delete model failed: %s", exc)
             return {"success": False, "data": None, "error": str(exc)}
-        return {"success": True, "data": None, "error": None}
+        return {
+            "success": True,
+            "data": {"message": "model deleted"},
+            "error": None,
+        }
 
     def get_dataset_info(self, data_path: str = ".") -> Dict[str, Any]:
         """Return basic dataset statistics."""
