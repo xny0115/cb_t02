@@ -778,18 +778,35 @@
                 mainContainer.scrollTop = mainContainer.scrollHeight;
             }
 
-            const api = window.pywebview && window.pywebview.api ? window.pywebview.api : {
-                get_config: () => Promise.resolve({data: {}}),
-                update_config: () => Promise.resolve({}),
-                start_training: () => Promise.resolve({msg: 'started'}),
-                get_status: () => Promise.resolve({data: {message: 'idle'}}),
-                inference: (msg) => Promise.resolve({data: {answer: `Echo: ${msg}`}}), // 기본 에코 응답
-                delete_model: () => Promise.resolve(false),
-                get_dataset_info: () => Promise.resolve({data: {size: 0}})
-            };
+            let api = null;
+
+            function initButtons() {
+                trainBtn.onclick = () => api.start_training().then(r => {
+                    if (r.success) {
+                        pollStatus();
+                    } else {
+                        showStatus(trainStatus, r.msg, 'error');
+                    }
+                });
+                deleteBtn.onclick = () => api.delete_model().then(r => {
+                    if (r.success) {
+                        showStatus(deleteStatus, 'model_deleted', 'success');
+                        updateProgress(0, 'idle');
+                    } else {
+                        showStatus(deleteStatus, 'no_model', 'error');
+                    }
+                });
+            }
+
+            window.addEventListener('pywebviewready', () => {
+                api = window.pywebview.api;
+                initButtons();
+                loadCfg();
+                pollStatus();
+            });
 
             // 초기 설정 로드
-            api.get_config().then(r => {
+            const loadCfg = () => api.get_config().then(r => {
                 const cfg = r.data || {};
                 if ('num_epochs' in cfg) document.getElementById('epochInput').value = cfg.num_epochs;
                 if ('batch_size' in cfg) document.getElementById('batchInput').value = cfg.batch_size;
@@ -961,6 +978,21 @@
             // 페이지 로드 시 초기 입력창 높이 설정 및 스크롤 위치 조정
             adjustInputHeight();
             mainContainer.scrollTop = mainContainer.scrollHeight;
+        });
+
+        function wrap(name, fn) {
+            return (...args) => {
+                console.log("CALL", name, args);
+                return fn(...args).then(r => {
+                    console.log("RET", name, r);
+                    return r;
+                });
+            };
+        }
+        window.addEventListener("pywebviewready", () => {
+            ["start_training", "delete_model", "infer", "get_status"].forEach(m => {
+                api[m] = wrap(m, api[m]);
+            });
         });
     </script>
 </body>

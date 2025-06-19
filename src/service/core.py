@@ -88,12 +88,13 @@ class ChatbotService:
             self.model_exists = True
             logger.info("Training complete")
         except Exception as exc:  # pragma: no cover
-            msg = f"error: {exc}"
             logger.exception("Training failed")
-            self.model_exists = False
             with self._lock:
-                self._status_msg = msg
+                self._status_msg = f"error: {exc}"
                 self._progress = 0.0
+                self.training = False
+            self.model_exists = False
+            return
         with self._lock:
             self.training = False
             self._status_msg = msg
@@ -106,7 +107,7 @@ class ChatbotService:
                 return {"success": False, "msg": "already_training", "data": None}
             self.training = True
             self._status_msg = "starting"
-            self._progress = 0.0
+            self._progress = 0.001
         log_gpu_memory()
         self._thread = Thread(target=self.train, args=(Path("datas") / data_path,), daemon=True)
         self._thread.start()

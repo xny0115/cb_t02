@@ -18,8 +18,9 @@ class WebBackend:
     def start_training(self) -> Dict[str, Any]:
         return self._svc.start_training()
 
-    def delete_model(self) -> bool:
-        return self._svc.delete_model()
+    def delete_model(self) -> Dict[str, Any]:
+        ok = self._svc.delete_model()
+        return {"success": ok, "msg": "deleted" if ok else "no_model", "data": None}
 
     def infer(self, text: str) -> Dict[str, Any]:
         return self._svc.infer(text)
