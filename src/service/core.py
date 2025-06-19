@@ -15,7 +15,7 @@ from .utils import to_config, _CFG_MAP
 from ..training import train
 from ..utils.logger import LOG_PATH, log_gpu_memory
 from ..utils.vocab import Tokenizer
-from ..data.loader import QADataset
+from ..data.loader import load_all
 from ..tuning.auto import suggest_config
 from .loader import load_model
 logger = logging.getLogger(__name__)
@@ -31,7 +31,7 @@ class ChatbotService:
         self._tokenizer: Tokenizer | None = None
         self._model = None
         self._lock = Lock(); self._thread: Thread | None = None
-        self._dataset = QADataset(Path("datas"))
+        self._dataset = load_all(Path("datas"))
         self.auto_tune()
         if self.model_exists:
             self._tokenizer, self._model = load_model(self.model_path)

@@ -2,7 +2,7 @@ import json
 import subprocess
 
 
-def send_two_messages():
+def run_dom_script():
     script = """
 const { JSDOM } = require('jsdom');
 const dom = new JSDOM('<div id="chatHistory" style="height:120px; overflow:auto"></div>', { runScripts: 'outside-only' });
@@ -14,15 +14,16 @@ function appendChat(role, text){
   div.className = role === 'USER' ? 'user-msg' : 'bot-msg';
   div.textContent = text;
   chatHistory.appendChild(div);
-  div.scrollIntoView({ behavior:'auto', block:'end' });
+  div.scrollIntoView({ behavior: 'auto', block: 'end' });
 }
-for(let i=0;i<20;i++) appendChat('USER','x'+i);
-console.log(JSON.stringify({ top: chatHistory.scrollTop, height: chatHistory.scrollHeight, client: chatHistory.clientHeight }));
+for(let i=0;i<20;i++) appendChat('USER','m'+i);
+console.log(JSON.stringify({top:chatHistory.scrollTop,height:chatHistory.scrollHeight,client:chatHistory.clientHeight}));
 """
     out = subprocess.check_output(['node', '-e', script])
     return json.loads(out.decode())
 
 
-def test_auto_scroll():
-    res = send_two_messages()
+def test_scroll_dom():
+    res = run_dom_script()
     assert res['top'] + res['client'] >= res['height'] - 1
+

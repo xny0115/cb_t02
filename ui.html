@@ -951,10 +951,8 @@
                 chatHistory.appendChild(div);
 
                 // === 자동 스크롤 ===
-                // requestAnimationFrame 사용으로 렌더 이후 정확히 하단 이동
-                requestAnimationFrame(()=> {
-                    chatHistory.scrollTop = chatHistory.scrollHeight;
-                });
+                // 렌더 후 새 메시지가 보이도록 보장
+                div.scrollIntoView({ behavior: 'auto', block: 'end' });
             }
 
             function onSend(){
