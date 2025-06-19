@@ -752,7 +752,7 @@
             const api = window.pywebview && window.pywebview.api ? window.pywebview.api : {
                 get_config: () => Promise.resolve({data: {}}),
                 update_config: () => Promise.resolve({}),
-                start_train: () => Promise.resolve(),
+                start_training: () => Promise.resolve({msg: 'started'}),
                 get_status: () => Promise.resolve({data: {message: 'idle'}}),
                 inference: (msg) => Promise.resolve({data: {answer: `Echo: ${msg}`}}), // 기본 에코 응답
                 delete_model: () => Promise.resolve(),
@@ -832,13 +832,10 @@
                 clearStatus(trainStatus);
                 clearStatus(deleteStatus);
                 api.update_config(cfg)
-                    .then(() => {
-                        showStatus(trainStatus, '모델 학습을 시작합니다...', 'info');
-                        return api.start_train('.');
-                    })
+                    .then(() => api.start_training())
                     .then(r => {
-                        const msg = r && r.data ? r.data.message : null;
-                        showStatus(trainStatus, msg || '모델 학습 완료!', 'success');
+                        alert(r.msg);
+                        showStatus(trainStatus, '진행 중', 'info');
                     })
                     .catch(err => {
                         showStatus(trainStatus, '모델 학습 실패: ' + (err.message || err), 'error');
@@ -866,8 +863,8 @@
                 if (confirm('정말로 모델 파일을 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.')) {
                     api.delete_model()
                         .then(r => {
-                            const msg = r && r.data ? r.data.message : null;
-                            showStatus(deleteStatus, msg || '모델 파일이 삭제되었습니다.', 'success');
+                            alert(r.msg);
+                            showStatus(deleteStatus, r.msg, 'success');
                         })
                         .catch(err => showStatus(deleteStatus, '모델 파일 삭제 실패: ' + (err.message || err), 'error'));
                 }
@@ -893,7 +890,12 @@
 
                 api.inference(msg)
                     .then(r => {
-                        const ans = r && r.data ? r.data.answer : '응답 없음';
+                        if (!r.success) {
+                            alert(r.msg);
+                            addMessage('오류: ' + r.msg, 'bot');
+                            return;
+                        }
+                        const ans = r && r.data ? r.data.answer || r.data : '응답 없음';
                         addMessage(ans, 'bot');
                     })
                     .catch(err => {
@@ -910,14 +912,12 @@
                         cpuStatus.textContent = d.cpu_usage ? `${d.cpu_usage.toFixed(1)}%` : 'N/A';
                         gpuStatus.textContent = d.gpu_usage ? `${d.gpu_usage.toFixed(1)}%` : 'N/A';
 
-                        // 학습 상태 메시지 업데이트
-                        if (d.message && d.message !== 'idle') {
-                            showStatus(trainStatus, d.message, 'info');
-                        } else if (trainStatus.textContent.includes('학습을 시작합니다...')) {
-                            // 학습 시작 메시지가 남아있다면, 학습 완료 또는 유휴 상태로 변경
-                            showStatus(trainStatus, '모델 유휴 상태.', 'info');
-                        } else if (!trainStatus.textContent) {
-                            // 메시지가 없을 때 기본 유휴 상태 표시
+                        if (d.running) {
+                            const pct = (d.progress * 100).toFixed(0);
+                            showStatus(trainStatus, `학습 중... ${pct}%`, 'info');
+                        } else if (d.message === 'done') {
+                            showStatus(trainStatus, '학습 완료', 'success');
+                        } else {
                             showStatus(trainStatus, '모델 유휴 상태.', 'info');
                         }
                     })
