@@ -67,7 +67,12 @@ def collate_fn(batch: Iterable[tuple[torch.Tensor, torch.Tensor]]):
     return qs, as_
 
 
-def train(dataset_path: Path, cfg: Config, progress_cb: Callable | None = None) -> Path:
+def train(
+    dataset_path: Path,
+    cfg: Config,
+    progress_cb: Callable | None = None,
+    model_path: Path | None = None,
+) -> Path:
     """Train model using dataset and configuration."""
     ds = QADataset(dataset_path)
     if len(ds) < 50:
@@ -130,7 +135,7 @@ def train(dataset_path: Path, cfg: Config, progress_cb: Callable | None = None) 
             logger.info("Early stopping triggered at epoch %d", epoch + 1)
             break
 
-    save_path = Path("models") / "transformer.pt"
+    save_path = model_path or Path("models") / "current.pth"
     save_path.parent.mkdir(parents=True, exist_ok=True)
     torch.save(model.state_dict(), save_path)
     logger.info("Model saved to %s", save_path)
@@ -139,7 +144,7 @@ def train(dataset_path: Path, cfg: Config, progress_cb: Callable | None = None) 
 
 def infer(question: str, cfg: Config, model_path: Path | None = None) -> str:
     """Generate an answer using greedy decoding."""
-    model_path = model_path or Path("models") / "transformer.pt"
+    model_path = model_path or Path("models") / "current.pth"
     if not model_path.exists():
         raise FileNotFoundError(model_path)
 

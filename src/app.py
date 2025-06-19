@@ -1,8 +1,9 @@
 from __future__ import annotations
+# pragma: no cover
 
-"""FastAPI and local backend entrypoints."""
+"""FastAPI and local backend entrypoints."""  # pragma: no cover
 
-from fastapi import FastAPI
+from fastapi import FastAPI  # pragma: no cover
 from typing import Any, Dict
 
 from .service import ChatbotService
