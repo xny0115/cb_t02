@@ -24,3 +24,8 @@ _CFG_MAP = {
 def to_config(data: Dict[str, Any]) -> Config:
     """Convert config dict to Config dataclass."""
     return Config(**{k: data.get(src, d) for k, (src, d) in _CFG_MAP.items()})
+
+
+def simple_fallback(prompt: str) -> str:
+    """Return short apology."""
+    return "죄송합니다. 답변을 준비하지 못했습니다." if "?" in prompt else "답변을 생성하지 못했습니다."
