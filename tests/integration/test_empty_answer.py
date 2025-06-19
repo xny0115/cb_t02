@@ -12,4 +12,4 @@ def test_empty_answer():
     svc._tokenizer = Tokenizer({"<pad>":0, "<eos>":1})
     svc._model = DummyModel()
     res = svc.infer("??")
-    assert res["success"] and res["data"].startswith("죄송합니다")
+    assert res["success"] and res["data"] == ""

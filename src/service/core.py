@@ -18,7 +18,6 @@ from ..utils.vocab import Tokenizer
 from ..data.loader import QADataset
 from ..tuning.auto import suggest_config
 from .loader import load_model
-from .utils import simple_fallback
 logger = logging.getLogger(__name__)
 class ChatbotService:
     def __init__(self) -> None:
@@ -33,6 +32,7 @@ class ChatbotService:
         self._model = None
         self._lock = Lock(); self._thread: Thread | None = None
         self._dataset = QADataset(Path("datas"))
+        self._resp_hist: list[str] = []
         self.auto_tune()
         if self.model_exists:
             self._tokenizer, self._model = load_model(self.model_path)
@@ -165,12 +165,25 @@ class ChatbotService:
                 no_repeat_ngram=no_rep,
             )
             ids = out.view(-1).tolist()[1:]
-            decoded = self._tokenizer.decode(ids).strip()
-            if len(set(decoded.split())) < 3 or len(decoded) < 5:
-                logger.warning("low-quality answer | fallback")
-                decoded = "죄송합니다, 답변을 생성하지 못했습니다."
-            logger.debug("infer result: %s", decoded[:60])
-            return {"success": True, "msg": "", "data": decoded}
+            answer = self._tokenizer.decode(ids).strip()
+            def _is_redundant(ans: str) -> bool:
+                if not ans:
+                    return False
+                tokens = ans.split()
+                if ans.count(tokens[0]) > 2:
+                    return True
+                half = len(tokens) // 2
+                return half >= 2 and tokens[:half] == tokens[half:]
+
+            if _is_redundant(answer):
+                logger.warning("redundant answer blocked")
+                answer = "(반복 방지로 내용 제거됨)"
+            self._resp_hist.append(answer)
+            if len(self._resp_hist) > 5:
+                self._resp_hist.pop(0)
+            logger.debug("last responses: %s", self._resp_hist)
+            logger.debug("infer result: %s", answer[:60])
+            return {"success": True, "msg": "", "data": answer}
         except Exception as exc:
             logger.exception("infer failed")
             return {"success": False, "msg": f"error: {exc}", "data": None}
