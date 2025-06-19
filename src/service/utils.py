@@ -16,6 +16,8 @@ _CFG_MAP = {
     'model_dim': ('model_dim', 128),
     'ff_dim': ('ff_dim', 512),
     'top_k': ('top_k', 10),
+    'top_p': ('top_p', 0.9),
+    'no_repeat_ngram': ('no_repeat_ngram', 2),
     'temperature': ('temperature', 0.7),
     'early_stopping_patience': ('early_stopping_patience', 5),
     'verbose': ('verbose', False),

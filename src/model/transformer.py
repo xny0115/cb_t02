@@ -48,19 +48,48 @@ class Seq2SeqTransformer(nn.Module):
         return self.fc_out(output)
 
     @torch.no_grad()
-    def generate(self, src: torch.Tensor, max_new: int = 64, eos_id: int = 1, **kw) -> torch.Tensor:
-        """Greedy decoding ensuring at least BOS + one token."""
+    def generate(
+        self,
+        src: torch.Tensor,
+        max_new_tokens: int = 64,
+        eos_id: int = 1,
+        temperature: float = 0.8,
+        top_k: int = 50,
+        top_p: float = 0.9,
+        no_repeat_ngram: int = 2,
+    ) -> torch.Tensor:
+        """Generate sequence with sampling and n-gram blocking."""
         self.eval()
         device = src.device
-        if "max_new_tokens" in kw:
-            max_new = kw["max_new_tokens"]
         ys = torch.tensor([[eos_id]], device=device)
-        for _ in range(max_new):
-            out = self(src, ys)
-            prob = out[-1, 0].softmax(-1)
-            next_id = int(prob.argmax())
-            ys = torch.cat([ys, torch.tensor([[next_id]], device=device)], dim=0)
-            if next_id == eos_id:
+        ngrams: set[tuple[int, ...]] = set()
+        for _ in range(max_new_tokens):
+            out = self(src, ys)[:, -1, :] / temperature
+            if no_repeat_ngram > 1 and ys.size(0) >= no_repeat_ngram:
+                prefix = ys[0, -no_repeat_ngram + 1 :].tolist()
+                banned = [w for w in range(out.size(1)) if tuple(prefix + [w]) in ngrams]
+                if banned:
+                    out[-1, banned] = -float("inf")
+            k = min(top_k, out.size(-1))
+            topk_val, topk_idx = out.topk(k)
+            probs = torch.softmax(topk_val, dim=-1)
+            if 0.0 < top_p < 1.0:
+                s_probs, s_idx = probs.sort(descending=True)
+                cum = s_probs.cumsum(dim=-1)
+                mask = cum > top_p
+                if mask.all():
+                    mask[-1] = False
+                s_probs[mask] = 0
+                s_probs.div_(s_probs.sum())
+                choice = torch.multinomial(s_probs[0], 1).item()
+                idx = s_idx[0, choice].item()
+                next_id = topk_idx[0, idx].view(1, 1)
+            else:
+                next_id = topk_idx[0, torch.multinomial(probs[0], 1).item()].view(1, 1)
+            ys = torch.cat([ys, next_id], dim=0)
+            if no_repeat_ngram > 1 and ys.size(0) >= no_repeat_ngram:
+                ngrams.add(tuple(ys[0, -no_repeat_ngram:].tolist()))
+            if next_id.item() == eos_id:
                 break
         return ys
 

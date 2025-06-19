@@ -144,12 +144,31 @@ class ChatbotService:
             if hasattr(self._model, "to"):
                 self._model.to(device).eval()
             tokens = self._tokenizer.encode(text).unsqueeze(1).to(device)
-            out = self._model.generate(tokens, max_new_tokens=64)
+            cfg = self._config
+            temperature = float(cfg.get("temperature", 0.8))
+            top_k = int(cfg.get("top_k", 50))
+            top_p = float(cfg.get("top_p", 0.9))
+            no_rep = int(cfg.get("no_repeat_ngram", 2))
+            logger.debug(
+                "sampling T=%.2f k=%d p=%.2f noRep=%d",
+                temperature,
+                top_k,
+                top_p,
+                no_rep,
+            )
+            out = self._model.generate(
+                tokens,
+                max_new_tokens=cfg.get("max_sequence_length", 64),
+                temperature=temperature,
+                top_k=top_k,
+                top_p=top_p,
+                no_repeat_ngram=no_rep,
+            )
             ids = out.view(-1).tolist()[1:]
             decoded = self._tokenizer.decode(ids).strip()
-            if not decoded:
-                logger.warning("empty answer fallback used | prompt=%s", text[:40])
-                decoded = simple_fallback(text)
+            if len(set(decoded.split())) < 3 or len(decoded) < 5:
+                logger.warning("low-quality answer | fallback")
+                decoded = "죄송합니다, 답변을 생성하지 못했습니다."
             logger.debug("infer result: %s", decoded[:60])
             return {"success": True, "msg": "", "data": decoded}
         except Exception as exc:

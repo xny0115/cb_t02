@@ -633,6 +633,14 @@
                             <label for="tempInput">창의성 (Temperature)</label>
                             <input type="number" id="tempInput" step="0.1" min="0.1" max="2.0" value="0.7" />
                         </div>
+                        <div class="setting-item">
+                            <label for="topPInput">Top-P 누적확률</label>
+                            <input type="number" id="topPInput" step="0.05" min="0.1" max="1" value="0.9" />
+                        </div>
+                        <div class="setting-item">
+                            <label for="noRepeatInput">N-gram 반복 금지</label>
+                            <input type="number" id="noRepeatInput" min="1" max="5" value="2" />
+                        </div>
                      </div>
                 </div>
             </div>
@@ -765,7 +773,9 @@
                     model_dim: parseInt(document.getElementById('hiddenDimInput').value),
                     ff_dim: parseInt(document.getElementById('ffDimInput').value),
                     top_k: parseInt(document.getElementById('topkInput').value),
-                    temperature: parseFloat(document.getElementById('tempInput').value)
+                    temperature: parseFloat(document.getElementById('tempInput').value),
+                    top_p: parseFloat(document.getElementById('topPInput').value),
+                    no_repeat_ngram: parseInt(document.getElementById('noRepeatInput').value)
                 };
             }
 
@@ -782,6 +792,8 @@
                 if ('ff_dim' in cfg) document.getElementById('ffDimInput').value = cfg.ff_dim;
                 if ('top_k' in cfg) document.getElementById('topkInput').value = cfg.top_k;
                 if ('temperature' in cfg) document.getElementById('tempInput').value = cfg.temperature;
+                if ('top_p' in cfg) document.getElementById('topPInput').value = cfg.top_p;
+                if ('no_repeat_ngram' in cfg) document.getElementById('noRepeatInput').value = cfg.no_repeat_ngram;
                 if ('dropout_ratio' in cfg) {
                     dropoutInput.value = cfg.dropout_ratio;
                     dropoutValue.textContent = parseFloat(cfg.dropout_ratio).toFixed(2);
