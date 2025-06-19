@@ -10,7 +10,7 @@ def test_training_cycle(tmp_path):
     assert svc.model_path.exists()
     assert svc.model_path.stat().st_size >= 1_000_000
     del_res = svc.delete_model()
-    assert del_res["success"]
+    assert del_res is True
     assert not svc.model_path.exists()
     inf = svc.infer("hi")
     assert not inf["success"]

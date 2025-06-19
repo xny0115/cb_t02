@@ -784,7 +784,7 @@
                 start_training: () => Promise.resolve({msg: 'started'}),
                 get_status: () => Promise.resolve({data: {message: 'idle'}}),
                 inference: (msg) => Promise.resolve({data: {answer: `Echo: ${msg}`}}), // 기본 에코 응답
-                delete_model: () => Promise.resolve(),
+                delete_model: () => Promise.resolve(false),
                 get_dataset_info: () => Promise.resolve({data: {size: 0}})
             };
 
@@ -899,12 +899,12 @@
                 clearStatus(trainStatus);
                 clearStatus(deleteStatus);
                 api.delete_model()
-                    .then(r => {
-                        if (r.success) {
-                            showStatus(deleteStatus, r.msg, 'success');
+                    .then(success => {
+                        if (success) {
+                            showStatus(deleteStatus, 'model_deleted', 'success');
                             updateProgress(0, 'idle');
                         } else {
-                            showStatus(deleteStatus, r.msg, 'error');
+                            showStatus(deleteStatus, 'no_model', 'error');
                         }
                     })
                     .catch(err => showStatus(deleteStatus, '모델 파일 삭제 실패: ' + (err.message || err), 'error'));

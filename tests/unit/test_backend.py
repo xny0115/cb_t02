@@ -18,6 +18,6 @@ def test_backend_cycle(tmp_path):
             break
         time.sleep(0.1)
     del_res = backend.delete_model()
-    assert del_res['success']
+    assert del_res is True
     inf = backend.infer('hi')
     assert not inf['success']

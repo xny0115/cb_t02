@@ -6,7 +6,6 @@ from pathlib import Path
 from threading import Lock, Thread
 from typing import Any, Dict
 import logging
-import json
 import time
 
 try:
@@ -83,16 +82,15 @@ class ChatbotService:
         log_gpu_memory()
         try:
             train(path, self.cfg, progress_cb=progress, model_path=self.model_path)
-            if self.model_path.stat().st_size < 1_000_000:
-                need = 1_000_000 - self.model_path.stat().st_size
-                with self.model_path.open("a", encoding="utf-8") as f:
-                    f.write(" " * need)
+            if not self.model_path.exists() or self.model_path.stat().st_size < 1_000_000:
+                raise RuntimeError("모델 저장 실패: 파일 미생성 또는 손상")
             msg = "done"
             self.model_exists = True
             logger.info("Training finished")
         except Exception as exc:  # pragma: no cover
             msg = f"error: {exc}"
             logger.exception("Training failed")
+            self.model_exists = False
             with self._lock:
                 self._status_msg = msg
                 self._progress = 0.0
@@ -124,15 +122,7 @@ class ChatbotService:
             logger.warning("Model not found")
             return {"success": False, "msg": "no model", "data": None}
         try:
-            if not hasattr(self, "_qa_map"):
-                try:
-                    self._qa_map = json.loads(self.model_path.read_text(encoding="utf-8"))
-                except Exception:
-                    self._qa_map = None
-            if isinstance(self._qa_map, dict):
-                answer = self._qa_map.get(question, "N/A")
-            else:
-                answer = infer(question, self.cfg, model_path=self.model_path)
+            answer = infer(question, self.cfg, model_path=self.model_path)
             logger.info("Inference complete")
             log_gpu_memory()
             return {"success": True, "msg": "ok", "data": answer}
@@ -179,21 +169,20 @@ class ChatbotService:
             data["logs"] = ""
         return {"success": True, "msg": "ok", "data": data}
 
-    def delete_model(self) -> Dict[str, Any]:
+    def delete_model(self) -> bool:
         if self.training:
             self.stop_training()
-        if not self.model_path.exists():
-            return {"success": False, "msg": "no_model", "data": None}
-        try:
-            for p in self.model_path.parent.glob("current.pth*"):
-                p.unlink(missing_ok=True)
-            self.model_exists = False
-            self._status_msg = "model_deleted"
-            logger.info("Model deleted")
-            return {"success": True, "msg": "model_deleted", "data": None}
-        except Exception as exc:  # pragma: no cover
-            logger.exception("Delete model failed")
-            return {"success": False, "msg": str(exc), "data": None}
+        if self.model_path.exists():
+            try:
+                self.model_path.unlink()
+                self.model_exists = False
+                self._status_msg = "model_deleted"
+                logger.info("Model deleted")
+                return True
+            except Exception:  # pragma: no cover
+                logger.exception("Delete model failed")
+                return False
+        return False
 
     def get_dataset_info(self, data_path: str = ".") -> Dict[str, Any]:
         try:  # pragma: no cover
