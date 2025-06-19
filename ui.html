@@ -158,6 +158,11 @@
             scroll-behavior: smooth;
         }
 
+        .chat-history {
+            overflow-y: auto;
+            height: 100%;
+        }
+
         .message {
             display: flex;
             margin-bottom: 10px;
@@ -200,6 +205,25 @@
             background: var(--color-background-medium);
             color: var(--color-text-primary);
             border-bottom-left-radius: var(--border-radius-small);
+        }
+
+        .user-msg, .bot-msg {
+            padding: 8px 12px;
+            margin: 4px 0;
+            border-radius: var(--border-radius-medium);
+            max-width: 80%;
+        }
+
+        .user-msg {
+            background: var(--color-accent-primary);
+            color: var(--color-text-primary);
+            margin-left: auto;
+        }
+
+        .bot-msg {
+            background: var(--color-background-medium);
+            color: var(--color-text-primary);
+            margin-right: auto;
         }
 
         .message-footer {
@@ -255,7 +279,7 @@
             width: 100%;
         }
 
-        #messageInput {
+        #userInput {
             flex-grow: 1;
             padding: 16px 16px;
             border: none;
@@ -447,14 +471,14 @@
         /* Webkit (Chrome, Safari, Edge) 기반 브라우저 */
         /* 전체 스크롤바 트랙 */
         .main-container::-webkit-scrollbar,
-        #messageInput::-webkit-scrollbar {
+        #userInput::-webkit-scrollbar {
             width: 10px; /* 스크롤바 너비 */
             background-color: var(--color-background-dark); /* 스크롤바 뒷 배경 색상 */
         }
 
         /* 스크롤바 썸(움직이는 부분) */
         .main-container::-webkit-scrollbar-thumb,
-        #messageInput::-webkit-scrollbar-thumb {
+        #userInput::-webkit-scrollbar-thumb {
             background-color: var(--color-background-medium); /* 썸 색상 */
             border-radius: var(--border-radius-large); /* 썸 모서리 둥글게 */
             border: 2px solid var(--color-background-dark); /* 썸과 트랙 사이의 경계선 (선택 사항) */
@@ -462,7 +486,7 @@
 
         /* 스크롤바 썸 호버 시 */
         .main-container::-webkit-scrollbar-thumb:hover,
-        #messageInput::-webkit-scrollbar-thumb:hover {
+        #userInput::-webkit-scrollbar-thumb:hover {
             background-color: var(--color-background-light); /* 호버 시 썸 색상 */
         }
 
@@ -471,7 +495,7 @@
             scrollbar-width: thin;
             scrollbar-color: var(--color-background-medium) var(--color-background-dark);
         }
-        #messageInput {
+        #userInput {
             scrollbar-width: thin;
             scrollbar-color: var(--color-background-medium) var(--color-background-darkest);
         } */
@@ -492,14 +516,16 @@
     <div id="errorBar" class="status-message error" style="display:none"></div>
         <div id="chatContent" class="content-wrapper active">
             <div class="chat-area" id="chatArea">
-                <div class="message bot">
-                    <div class="message-content">
-                        안녕~ 내 도움이 필요해?
-                        <div class="message-footer">
-                            <span class="timestamp"></span>
+                <div id="chatHistory" class="chat-history">
+                    <div class="message bot">
+                        <div class="message-content">
+                            안녕~ 내 도움이 필요해?
+                            <div class="message-footer">
+                                <span class="timestamp"></span>
+                            </div>
                         </div>
                     </div>
-                </div>                
+                </div>
             </div>
         </div>
 
@@ -627,7 +653,7 @@
 
     <div class="input-area-wrapper">
         <div class="input-area">
-            <textarea id="messageInput" placeholder="메시지를 입력하세요..." rows="1"></textarea>
+            <textarea id="userInput" placeholder="메시지를 입력하세요..." rows="1"></textarea>
             <div class="input-buttons">
                 <button id="attachBtn" title="파일 첨부 (기능 확장용)">
                     <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"></path></svg>
@@ -645,8 +671,8 @@
             const trainBtn = document.getElementById('trainBtn');
             const saveBtn = document.getElementById('saveSettingsBtn');
             const sendBtn = document.getElementById('sendBtn');
-            const messageInput = document.getElementById('messageInput');
-            const chatArea = document.getElementById('chatArea');
+            const userInput = document.getElementById('userInput');
+            const chatHistory = document.getElementById('chatHistory');
             const trainStatus = document.getElementById('trainStatus');
             const cpuStatus = document.getElementById('cpuStatus');
             const gpuStatus = document.getElementById('gpuStatus');
@@ -661,17 +687,17 @@
 
             // 메시지 입력창 높이 자동 조절 함수
             function adjustInputHeight() {
-                messageInput.style.height = 'auto'; // 높이 초기화
+                userInput.style.height = 'auto'; // 높이 초기화
                 // min-height보다 작아지지 않도록 48px와 scrollHeight 중 큰 값을 사용
-                messageInput.style.height = Math.max(messageInput.scrollHeight, 48) + 'px';
+                userInput.style.height = Math.max(userInput.scrollHeight, 48) + 'px';
 
                 // max-height를 넘어가면 max-height로 고정하고 스크롤바 표시
-                const maxHeight = parseInt(getComputedStyle(messageInput).maxHeight);
-                if (messageInput.scrollHeight > maxHeight) {
-                    messageInput.style.overflowY = 'auto';
-                    messageInput.style.height = maxHeight + 'px';
+                const maxHeight = parseInt(getComputedStyle(userInput).maxHeight);
+                if (userInput.scrollHeight > maxHeight) {
+                    userInput.style.overflowY = 'auto';
+                    userInput.style.height = maxHeight + 'px';
                 } else {
-                    messageInput.style.overflowY = 'hidden'; // 내용이 max-height보다 작으면 스크롤바 숨김
+                    userInput.style.overflowY = 'hidden'; // 내용이 max-height보다 작으면 스크롤바 숨김
                 }
             }
 
@@ -739,52 +765,6 @@
                 };
             }
 
-            function addMessage(text, sender) {
-                const messageContainer = document.createElement('div');
-                messageContainer.classList.add('message', sender);
-
-                const messageContent = document.createElement('div');
-                messageContent.classList.add('message-content');
-                messageContent.textContent = text;
-
-                // 시간 스탬프 추가 (옵션)
-                const messageFooter = document.createElement('div');
-                messageFooter.classList.add('message-footer');
-                const timestampSpan = document.createElement('span');
-                timestampSpan.classList.add('timestamp');
-                timestampSpan.textContent = new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
-                messageFooter.appendChild(timestampSpan);
-
-                // 봇 메시지에만 피드백 버튼 추가 (예시)
-                if (sender === 'bot') {
-                    const feedbackArea = document.createElement('div');
-                    feedbackArea.classList.add('feedback-area');
-                    feedbackArea.innerHTML = `
-                        <button class="feedback-btn like-btn" title="좋아요">
-                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" stroke="none" class="w-6 h-6"><path d="M14.707 10.293a1 1 0 0 1 0 1.414l-4 4a1 1 0 0 1-1.414 0l-4-4a1 1 0 0 1 1.414-1.414L9 12.586V5a1 1 0 1 1 2 0v7.586l2.293-2.293a1 1 0 0 1 1.414 0z"></path></svg>
-                        </button>
-                        <button class="feedback-btn dislike-btn" title="싫어요">
-                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" stroke="none" class="w-6 h-6"><path d="M9.293 13.707a1 1 0 0 1 0-1.414l4-4a1 1 0 0 1 1.414 0l4 4a1 1 0 0 1-1.414 1.414L15 11.414V19a1 1 0 1 1-2 0v-7.586l-2.293 2.293a1 1 0 0 1-1.414 0z"></path></svg>
-                        </button>
-                    `;
-                    feedbackArea.querySelector('.like-btn').addEventListener('click', function() {
-                        this.classList.toggle('liked');
-                        this.closest('.feedback-area').querySelector('.dislike-btn').classList.remove('disliked');
-                    });
-                    feedbackArea.querySelector('.dislike-btn').addEventListener('click', function() {
-                        this.classList.toggle('disliked');
-                        this.closest('.feedback-area').querySelector('.like-btn').classList.remove('liked');
-                    });
-                    messageFooter.appendChild(feedbackArea);
-                }
-
-
-                messageContent.appendChild(messageFooter);
-                messageContainer.appendChild(messageContent);
-                chatArea.appendChild(messageContainer);
-                // 새 메시지 추가 시 스크롤을 맨 아래로
-                mainContainer.scrollTop = mainContainer.scrollHeight;
-            }
 
             let api = null;
 
@@ -840,13 +820,13 @@
             });
 
             // 메시지 입력창 높이 자동 조절 이벤트 리스너
-            messageInput.addEventListener('input', adjustInputHeight);
+            userInput.addEventListener('input', adjustInputHeight);
 
             // Enter 키로 메시지 전송 (Shift + Enter는 줄바꿈)
-            messageInput.addEventListener('keydown', e => {
+            userInput.addEventListener('keydown', e => {
                 if (e.key === 'Enter' && !e.shiftKey) {
                     e.preventDefault();
-                    sendBtn.click();
+                    onSend();
                 }
             });
 
@@ -944,19 +924,26 @@
                 .catch(err => showStatus(datasetInfo, '데이터셋 정보 로드 실패: ' + (err.message || err), 'error'));
 
 
-            function onSend() {
-                const q = messageInput.value.trim();
-                if (!q) return;
-                api.infer(q).then(({ success, data, msg }) => {
-                    if(!success){showError(msg);return;}
-                    addMessage(q, 'user');
-                    addMessage(data, 'bot');
-                    messageInput.value = '';
-                    adjustInputHeight();
-                    messageInput.focus();
-                }).catch(err => showError(err.message || err));
+            function appendChat(role, text){
+                const div = document.createElement('div');
+                div.className = role === 'USER' ? 'user-msg' : 'bot-msg';
+                div.textContent = text;
+                chatHistory.appendChild(div);
+                chatHistory.scrollTop = chatHistory.scrollHeight;
             }
-            sendBtn.addEventListener('click', onSend);
+
+            function onSend(){
+                const q = userInput.value.trim();
+                if(!q) return;
+                api.infer(q).then(({success,data,msg})=>{
+                    if(!success){ showError(msg); return; }
+                    appendChat('USER', q);
+                    appendChat('BOT', data);
+                    userInput.value='';
+                }).catch(err=>showError(err.message));
+            }
+
+            sendBtn.onclick = onSend;
 
             // 시스템 상태 폴링
             setInterval(() => {
