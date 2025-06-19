@@ -24,6 +24,8 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     "model_dim": 128,
     "ff_dim": 512,
     "top_k": 10,
+    "top_p": 0.9,
+    "no_repeat_ngram": 2,
     "temperature": 0.7,
     "early_stopping_patience": 5,
     "verbose": False,
@@ -44,6 +46,8 @@ class Config:
     model_dim: int = 128
     ff_dim: int = 512
     top_k: int = 10
+    top_p: float = 0.9
+    no_repeat_ngram: int = 2
     temperature: float = 0.7
     early_stopping_patience: int = 5
     verbose: bool = False
