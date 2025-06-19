@@ -78,6 +78,8 @@ def train(
     save_path = model_path or Path("models") / "current.pth"
     save_path.parent.mkdir(parents=True, exist_ok=True)
 
+    logger.info("Training started...")
+
     if len(ds) < 50:
         logger.warning("Dataset too small: %d entries", len(ds))
     tuner = AutoTuner(len(ds))
@@ -123,7 +125,8 @@ def train(
             break
 
     torch.save(model.state_dict(), save_path)
-    logger.info("Model saved to %s", save_path)
+    logger.info("Model saved to models/current.pth")
+    logger.info("Training complete")
     return save_path
 
 
@@ -158,4 +161,4 @@ def infer(question: str, cfg: Config, model_path: Path | None = None) -> str:
             break
         result.append(words[t - 2])
     out = " ".join(result)
-    return out or "N/A"
+    return out or "No answer"

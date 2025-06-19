@@ -6,10 +6,7 @@ try:
     import psutil  # type: ignore
 except Exception:  # pragma: no cover - optional
     psutil = None
-try:
-    import torch
-except Exception:  # pragma: no cover - optional
-    torch = None
+import torch
 from ..config import Config
 
 
@@ -18,7 +15,7 @@ class AutoTuner:
 
     def __init__(self, dataset_size: int) -> None:
         self.dataset_size = dataset_size
-        if torch is not None and torch.cuda.is_available():
+        if torch.cuda.is_available():
             self.device = "cuda"
         else:
             self.device = "cpu"
