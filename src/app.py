@@ -6,9 +6,17 @@ from pathlib import Path
 from threading import Thread, Lock
 from typing import Any, Dict
 
+import logging
+import psutil
+try:
+    import pynvml  # type: ignore
+except Exception:  # pragma: no cover - optional dep
+    pynvml = None
+
 from .config import load_config, save_config
 from .training import train, infer
 from .data.loader import QADataset
+from .tuning.auto import AutoTuner
 
 
 class Backend:
@@ -16,12 +24,25 @@ class Backend:
 
     def __init__(self) -> None:
         self._cfg = load_config()
+        self._auto_tune()
         self._state_lock = Lock()
         self._status: Dict[str, Any] = {
             "running": False,
             "message": "idle",
             "log": [],
         }
+
+    def _auto_tune(self) -> None:
+        """Adjust config based on dataset size and hardware."""
+        try:
+            ds = QADataset(Path("datas"))
+            tuner = AutoTuner(len(ds))
+            params = tuner.suggest()
+            self._cfg.batch_size = params["batch_size"]
+            self._cfg.learning_rate = params["learning_rate"]
+            self._cfg.num_epochs = params["epochs"]
+        except Exception as exc:  # pragma: no cover - best effort
+            logging.getLogger(__name__).warning("Auto tune failed: %s", exc)
 
     def get_config(self) -> Dict[str, Any]:
         """Return current configuration."""
@@ -68,12 +89,33 @@ class Backend:
             daemon=True,
         )
         thread.start()
-        return {"success": True, "data": None, "error": None}
+        return {
+            "success": True,
+            "data": {"message": "training started"},
+            "error": None,
+        }
 
     def get_status(self) -> Dict[str, Any]:
-        """Return training status and logs."""
+        """Return training status, logs and resource usage."""
         with self._state_lock:
-            return {"success": True, "data": self._status.copy(), "error": None}
+            status = self._status.copy()
+        status["cpu_usage"] = psutil.cpu_percent()
+        if pynvml is not None:
+            try:
+                pynvml.nvmlInit()
+                handle = pynvml.nvmlDeviceGetHandleByIndex(0)
+                util = pynvml.nvmlDeviceGetUtilizationRates(handle)
+                status["gpu_usage"] = float(util.gpu)
+            except Exception:  # pragma: no cover - GPU optional
+                status["gpu_usage"] = None
+            finally:
+                try:
+                    pynvml.nvmlShutdown()
+                except Exception:
+                    pass
+        else:
+            status["gpu_usage"] = None
+        return {"success": True, "data": status, "error": None}
 
     def inference(self, question: str) -> Dict[str, Any]:
         """Return model answer for a question."""
