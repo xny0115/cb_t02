@@ -13,7 +13,8 @@ def test_backend_cycle(tmp_path):
     assert res['success']
     while True:
         st = backend.get_status()
-        if st['data']['message'] in ('done', '') or st['data']['message'].startswith('error'):
+        msg = st['data']['status_msg']
+        if msg in ('done', '') or msg.startswith('error'):
             break
         time.sleep(0.1)
     del_res = backend.delete_model()

@@ -4,13 +4,29 @@ from __future__ import annotations
 
 import logging
 from logging.handlers import RotatingFileHandler
+from logging import Formatter
 from pathlib import Path
 from datetime import datetime
+import json
 
 
 LOG_DIR = Path("logs")
 LOG_PATH = LOG_DIR / f"{datetime.now():%y%m%d_%H%M}.json"
 FMT = "[%(asctime)s] %(levelname)s %(module)s:%(funcName)s - %(message)s"
+
+
+class JsonFormatter(Formatter):
+    """Simple JSON log formatter."""
+
+    def format(self, record: logging.LogRecord) -> str:  # type: ignore[override]
+        data = {
+            "time": self.formatTime(record, "%Y-%m-%d %H:%M:%S"),
+            "level": record.levelname,
+            "message": record.getMessage(),
+        }
+        if record.exc_info:
+            data["exc_info"] = self.formatException(record.exc_info)
+        return json.dumps(data, ensure_ascii=False)
 
 
 def setup_logger() -> Path:
@@ -22,7 +38,7 @@ def setup_logger() -> Path:
         backupCount=5,
         encoding="utf-8",
     )
-    formatter = logging.Formatter(FMT)
+    formatter = JsonFormatter()
     handler.setFormatter(formatter)
     stream = logging.StreamHandler()
     stream.setFormatter(formatter)
