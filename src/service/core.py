@@ -97,7 +97,7 @@ class ChatbotService:
             if time.time() - last >= 1:
                 last = time.time()
 
-        device = "cuda" if torch.cuda.is_available() else "cpu"
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         logger.info("Device selected: %s", device)
         log_gpu_memory()
         meta_path = self.model_path.with_suffix(".meta.json")
@@ -128,6 +128,7 @@ class ChatbotService:
                 model_path=self.model_path,
                 start_epoch=start_ep,
                 meta_path=meta_path,
+                device=device,
             )
             if (
                 not self.model_path.exists()
