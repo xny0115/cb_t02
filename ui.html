@@ -728,7 +728,6 @@
               const bar = document.getElementById("errorBar");
               bar.textContent = msg;
               bar.style.display = "block";
-              setTimeout(()=>bar.style.display='none', 5000);
             }
 
             function clearStatus(el) {
@@ -752,9 +751,7 @@
                     cpuStatus.textContent = data.cpu_usage ? `${data.cpu_usage.toFixed(1)}%` : 'N/A';
                     gpuStatus.textContent = data.gpu_usage ? `${data.gpu_usage.toFixed(1)}%` : 'N/A';
                     updateProgress(data.progress, data.status_msg);
-                    if (data.training) {
-                        setTimeout(pollStatus, 1000);
-                    } else {
+                    if (!data.training) {
                         trainBtn.disabled = false;
                         deleteBtn.disabled = false;
                     }
@@ -960,7 +957,6 @@
                 divMsg.appendChild(meta);
                 chatHistory.appendChild(divMsg);
 
-                divMsg.scrollIntoView({ block:'end' });
             }
 
             function onSend(){

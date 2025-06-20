@@ -105,7 +105,7 @@ class ChatbotService:
         if self.model_path.exists() and meta_path.exists():
             try:
                 meta = json.load(open(meta_path))
-                start_ep = int(meta.get("epochs_done", 0))
+                start_ep = int(meta.get("last_epoch", -1)) + 1
             except Exception:
                 start_ep = 0
             logger.info("resume training from epoch %d", start_ep)
