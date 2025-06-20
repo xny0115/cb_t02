@@ -167,7 +167,7 @@
 
         .message {
             display: flex;
-            margin-bottom: 10px;
+            margin: 50px 0;
             max-width: 80%;
             opacity: 0;
             transform: translateY(10px);
@@ -211,7 +211,7 @@
 
         .user-msg, .bot-msg {
             padding: 8px 12px;
-            margin: 4px 0;
+            margin: 50px 0;
             border-radius: var(--border-radius-medium);
             max-width: 80%;
         }
@@ -952,7 +952,7 @@
 
 
             function appendChat(role, text, latency = 0){
-                messages.unshift({ role, text, latency });
+                messages.push({ role, text, latency });
                 const divMsg = document.createElement('div');
                 divMsg.className = role === 'USER' ? 'user-msg' : 'bot-msg';
                 divMsg.textContent = text;
@@ -960,12 +960,12 @@
                 meta.className = 'meta';
                 meta.textContent = new Date().toLocaleTimeString() + ' \u00B7 ' + latency + ' ms';
                 divMsg.appendChild(meta);
-                chatHistory.prepend(divMsg);
+                chatHistory.appendChild(divMsg);
 
-                function scrollTop(){ chatHistory.scrollTop = 0; }
-                scrollTop();
-                requestAnimationFrame(scrollTop);
-                setTimeout(scrollTop, 30);
+                function scrollBottom(){ chatHistory.scrollTop = chatHistory.scrollHeight; }
+                scrollBottom();
+                requestAnimationFrame(scrollBottom);
+                setTimeout(scrollBottom, 30);
             }
 
             function onSend(){
