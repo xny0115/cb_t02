@@ -108,11 +108,8 @@ class ChatbotService:
                 start_ep = 0
             logger.info("resume training from epoch %d", start_ep)
             if start_ep >= epochs:
-                with self._lock:
-                    self.training = False
-                    self._status_msg = "already_trained"
-                    self._progress = 1.0
-                return
+                logger.info("retrain requested; restarting from epoch 0")
+                start_ep = 0
         elif meta_path.exists() and not self.model_path.exists():
             try:
                 meta_path.unlink()
