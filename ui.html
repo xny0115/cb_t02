@@ -702,6 +702,7 @@
             const tabs = document.querySelectorAll('.tab');
             const contents = document.querySelectorAll('.content-wrapper');
             const mainContainer = document.querySelector('.main-container');
+            const messages = [];
 
             // 메시지 입력창 높이 자동 조절 함수
             function adjustInputHeight() {
@@ -951,6 +952,7 @@
 
 
             function appendChat(role, text, latency = 0){
+                messages.unshift({ role, text, latency });
                 const divMsg = document.createElement('div');
                 divMsg.className = role === 'USER' ? 'user-msg' : 'bot-msg';
                 divMsg.textContent = text;
@@ -960,8 +962,7 @@
                 divMsg.appendChild(meta);
                 chatHistory.prepend(divMsg);
 
-                const box = document.getElementById('chatHistory');
-                function scrollTop(){ box.scrollTop = 0; }
+                function scrollTop(){ chatHistory.scrollTop = 0; }
                 scrollTop();
                 requestAnimationFrame(scrollTop);
                 setTimeout(scrollTop, 30);
