@@ -16,11 +16,11 @@ function appendChat(role,text,latency=0){
   meta.className='meta';
   meta.textContent=new Date().toLocaleTimeString()+ ' · '+ latency+' ms';
   divMsg.appendChild(meta);
-  box.appendChild(divMsg);
-  function scrollBottom(){box.scrollTop=box.scrollHeight;}
-  scrollBottom();
-  window.requestAnimationFrame(scrollBottom);
-  window.setTimeout(scrollBottom,30);
+  box.prepend(divMsg);
+  function scrollTop(){box.scrollTop=0;}
+  scrollTop();
+  window.requestAnimationFrame(scrollTop);
+  window.setTimeout(scrollTop,30);
 }
 appendChat('BOT','hi',23);
 console.log(JSON.stringify({html:box.innerHTML}));

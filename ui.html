@@ -958,15 +958,13 @@
                 meta.className = 'meta';
                 meta.textContent = new Date().toLocaleTimeString() + ' \u00B7 ' + latency + ' ms';
                 divMsg.appendChild(meta);
-                chatHistory.appendChild(divMsg);
+                chatHistory.prepend(divMsg);
 
-                function scrollBottom(){
-                    const box = document.getElementById('chatHistory');
-                    box.scrollTop = box.scrollHeight;
-                }
-                scrollBottom();
-                requestAnimationFrame(scrollBottom);
-                setTimeout(scrollBottom, 30);
+                const box = document.getElementById('chatHistory');
+                function scrollTop(){ box.scrollTop = 0; }
+                scrollTop();
+                requestAnimationFrame(scrollTop);
+                setTimeout(scrollTop, 30);
             }
 
             function onSend(){
