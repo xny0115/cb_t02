@@ -6,7 +6,12 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Callable, Dict
 import logging
-import torch
+try:
+    import torch
+except ImportError as exc:  # pragma: no cover - env handling
+    raise ImportError(
+        "PyTorch missing; install it manually before running tests."
+    ) from exc
 from torch import nn, optim
 from torch.utils.data import DataLoader
 import json
@@ -20,7 +25,13 @@ from .data.loader import QADataset
 from .utils.vocab import build_vocab, encode
 from .model.transformer import Seq2SeqTransformer
 from .tuning.auto import AutoTuner
-from .training_utils import EarlyStopping, TorchQADataset, collate_fn
+from .training_utils import (
+    EarlyStopping,
+    TorchQADataset,
+    collate_fn,
+    load_checkpoint,
+    save_checkpoint,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -93,17 +104,12 @@ def train(
     criterion = nn.CrossEntropyLoss(ignore_index=0)
     optimizer = optim.Adam(model.parameters(), lr=params["learning_rate"])
     scheduler = optim.lr_scheduler.StepLR(optimizer, 1)
-    meta_file = ckpt_dir / "current.meta.json"
-    if resume and meta_file.exists():
-        try:
-            meta = json.loads(meta_file.read_text())
-            ckpt = torch.load(ckpt_dir / f"ckpt_{meta['last_epoch']:04}.pt", map_location=device)
-        except Exception as exc:
-            raise SystemExit(f"checkpoint load failed: {exc}")
+    ckpt, loaded_epoch = load_checkpoint(ckpt_dir, torch.device(device)) if resume else ({}, 0)
+    if ckpt:
         model.load_state_dict(ckpt["model_state"])
         optimizer.load_state_dict(ckpt["optim_state"])
         scheduler.load_state_dict(ckpt["scheduler_state"])
-        start_epoch = meta["last_epoch"] + 1
+        start_epoch = loaded_epoch
     elif start_epoch and save_path.exists():
         model.load_state_dict(torch.load(save_path, map_location=device))
     model.to(device)
@@ -133,15 +139,7 @@ def train(
             logger.info("Early stopping triggered at epoch %d", epoch + 1)
             break
         scheduler.step()
-        ckpt = {
-            "epoch": epoch,
-            "model_state": model.state_dict(),
-            "optim_state": optimizer.state_dict(),
-            "scheduler_state": scheduler.state_dict(),
-            "loss": epoch_loss,
-        }
-        torch.save(ckpt, ckpt_dir / f"ckpt_{epoch:04}.pt")
-        meta_file.write_text(json.dumps({"last_epoch": epoch, "last_loss": epoch_loss}))
+        save_checkpoint(ckpt_dir, epoch, model, optimizer, scheduler, epoch_loss)
     torch.save(model.state_dict(), save_path)
     logger.info("Model saved to models/current.pth")
     logger.info("Training complete")
@@ -185,12 +183,12 @@ def infer(question: str, cfg: Config, model_path: Path | None = None) -> str:
 def main() -> None:
     """CLI entry."""
     p = argparse.ArgumentParser()
-    p.add_argument("--resume", action="store_true", default=True)
     p.add_argument("--data-dir", default="datas")
+    p.add_argument("--no-resume", action="store_true")
     args = p.parse_args()
     cfg = Config()
     try:
-        train(Path(args.data_dir), cfg, resume=args.resume)
+        train(Path(args.data_dir), cfg, resume=not args.no_resume)
     except Exception as exc:  # pragma: no cover - CLI
         print(exc)
         raise SystemExit(1)
