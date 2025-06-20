@@ -13,4 +13,4 @@ def test_resume_logic(tmp_path):
     cfg.num_epochs = 10
     train(Path('datas'), cfg, model_path=model_path, resume=True)
     meta = json.loads(meta_file.read_text())
-    assert meta['last_epoch'] == 9
+    assert meta['last_epoch'] == 10

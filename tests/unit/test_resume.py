@@ -12,7 +12,7 @@ def test_resume(tmp_path):
     cfg.num_epochs = 3
     train(Path('datas'), cfg, model_path=model_path, resume=True)
     meta2 = json.loads((model_path.parent / 'ckpts/current.meta.json').read_text())
-    assert meta2['last_epoch'] == 2
+    assert meta2['last_epoch'] == 3
     assert meta2['loss'] <= loss_before
 
 def test_corrupt_meta(tmp_path):

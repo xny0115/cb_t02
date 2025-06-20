@@ -12,8 +12,8 @@ def test_resume_training(tmp_path, caplog):
     svc.train(Path("datas"))
     assert meta.exists()
     m = json.load(open(meta))
-    assert m["last_epoch"] == 1
+    assert m["last_epoch"] == 2
     svc.update_config({"epochs": 4})
     caplog.set_level(logging.INFO)
     svc.train(Path("datas"))
-    assert any("resume training from epoch 2" in r.message for r in caplog.records)
+    assert any("resume training from epoch 3" in r.message for r in caplog.records)

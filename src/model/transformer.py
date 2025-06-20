@@ -9,6 +9,17 @@ from typing import Tuple
 import torch
 from torch import nn
 
+
+def _sanitize_probs(probs: torch.Tensor) -> torch.Tensor:
+    """Ensure probability distribution sums to 1."""
+    probs = torch.nan_to_num(probs, nan=0.0, posinf=0.0, neginf=0.0)
+    s = probs.sum()
+    if s == 0:
+        probs.fill_(1.0 / probs.numel())
+    else:
+        probs.div_(s)
+    return probs
+
 logger = logging.getLogger(__name__)
 
 
@@ -75,20 +86,15 @@ class Seq2SeqTransformer(nn.Module):
                     out[banned] = -float("inf")
             k = min(top_k, out.size(0))
             topk_val, topk_idx = out.topk(k)
-            probs = torch.nan_to_num(
-                torch.softmax(topk_val, -1), nan=0.0, posinf=0.0
-            )
-            if probs.sum() <= 0:
-                logger.warning("multinomial fallback used at step %d", step)
-                next_id = topk_idx[0].view(1, 1)
-            elif 0.0 < top_p < 1.0:
+            probs = _sanitize_probs(torch.softmax(topk_val, -1))
+            if 0.0 < top_p < 1.0:
                 s_probs, s_idx = probs.sort(descending=True)
                 cum = s_probs.cumsum(dim=-1)
                 mask = cum > top_p
                 if mask.all():
                     mask[-1] = False
                 s_probs[mask] = 0
-                s_probs.div_(s_probs.sum())
+                s_probs = _sanitize_probs(s_probs)
                 choice = torch.multinomial(s_probs, 1).item()
                 idx = s_idx[choice].item()
                 next_id = topk_idx[idx].view(1, 1)
