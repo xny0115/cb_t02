@@ -9,14 +9,18 @@ const { window } = dom;
 const box = window.document.getElementById('chatHistory');
 if(!window.requestAnimationFrame){ window.requestAnimationFrame = cb => setTimeout(cb,16); }
 function appendChat(role,text,latency=0){
-  const divMsg = window.document.createElement('div');
-  divMsg.className = role==='USER'?'user-msg':'bot-msg';
-  divMsg.textContent = text;
-  const meta = window.document.createElement('span');
+  const wrap = window.document.createElement('div');
+  wrap.className = role==='USER'?'chat-msg user':'chat-msg bot';
+  const bubble = window.document.createElement('div');
+  bubble.className = role==='USER'?'user-msg':'bot-msg';
+  bubble.textContent = text;
+  const meta = window.document.createElement('div');
   meta.className='meta';
-  meta.textContent=new Date().toLocaleTimeString()+ ' · '+ latency+' ms';
-  divMsg.appendChild(meta);
-  box.prepend(divMsg);
+  meta.textContent=new Date().toLocaleTimeString();
+  if(role!=='USER') meta.textContent += ' · '+ latency+' ms';
+  wrap.appendChild(bubble);
+  wrap.appendChild(meta);
+  box.prepend(wrap);
   function scrollTop(){box.scrollTop=0;}
   scrollTop();
   window.requestAnimationFrame(scrollTop);

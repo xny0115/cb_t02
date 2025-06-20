@@ -210,29 +210,37 @@
             border-bottom-left-radius: var(--border-radius-small);
         }
 
+        .chat-msg {
+            display: flex;
+            flex-direction: column;
+            margin: 50px 0;
+            max-width: 80%;
+        }
+        .chat-msg.user { align-items: flex-end; }
+        .chat-msg.bot { align-items: flex-start; }
+
         .user-msg, .bot-msg {
             padding: 8px 12px;
-            margin: 50px 0;
             border-radius: var(--border-radius-medium);
-            max-width: 80%;
+            display: inline-block;
+            max-width: 100%;
+            word-break: break-word;
         }
 
         .user-msg {
             background: var(--color-accent-primary);
             color: var(--color-text-primary);
-            margin-left: auto;
         }
 
         .bot-msg {
             background: var(--color-background-medium);
             color: var(--color-text-primary);
-            margin-right: auto;
         }
 
         .meta {
             font-size: 0.75rem;
             color: #9ca3af;
-            margin-left: 4px;
+            margin-top: 4px;
         }
 
         .message-footer {
@@ -954,16 +962,23 @@
 
             function appendChat(role, text, latency = 0){
                 messages.push({ role, text, latency });
-                const divMsg = document.createElement('div');
-                divMsg.className = role === 'USER' ? 'user-msg' : 'bot-msg';
-                divMsg.textContent = text;
-                const meta = document.createElement('span');
-                meta.className = 'meta';
-                meta.textContent = new Date().toLocaleTimeString() + ' \u00B7 ' + latency + ' ms';
-                divMsg.appendChild(meta);
-                chatHistory.appendChild(divMsg);
+                const wrap = document.createElement('div');
+                wrap.className = role === 'USER' ? 'chat-msg user' : 'chat-msg bot';
 
-                divMsg.scrollIntoView({ behavior: 'smooth' });
+                const bubble = document.createElement('div');
+                bubble.className = role === 'USER' ? 'user-msg' : 'bot-msg';
+                bubble.textContent = text;
+
+                const meta = document.createElement('div');
+                meta.className = 'meta';
+                meta.textContent = new Date().toLocaleTimeString();
+                if(role !== 'USER') meta.textContent += ' \u00B7 ' + latency + ' ms';
+
+                wrap.appendChild(bubble);
+                wrap.appendChild(meta);
+                chatHistory.appendChild(wrap);
+
+                wrap.scrollIntoView({ behavior: 'smooth' });
             }
 
             function onSend(){

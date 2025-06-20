@@ -10,10 +10,13 @@ const { window } = dom;
 const box = window.document.getElementById('chatHistory');
 new window.MutationObserver(() => { box.scrollTop = 0; }).observe(box, { childList: true });
 function appendChat(role, text){
-  const div = window.document.createElement('div');
-  div.className = role === 'USER' ? 'user-msg' : 'bot-msg';
-  div.textContent = text;
-  box.prepend(div);
+  const wrap = window.document.createElement('div');
+  wrap.className = role === 'USER' ? 'chat-msg user' : 'chat-msg bot';
+  const bubble = window.document.createElement('div');
+  bubble.className = role === 'USER' ? 'user-msg' : 'bot-msg';
+  bubble.textContent = text;
+  wrap.appendChild(bubble);
+  box.prepend(wrap);
 }
 for(let i=0;i<30;i++) appendChat('USER','x'+i);
 console.log(JSON.stringify({ top: box.scrollTop, height: box.scrollHeight, client: box.clientHeight }));
