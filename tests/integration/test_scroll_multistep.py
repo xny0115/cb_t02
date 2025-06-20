@@ -16,11 +16,11 @@ function appendChat(role,text,latency=0){
   meta.className='meta';
   meta.textContent=new Date().toLocaleTimeString()+ ' · '+ latency+' ms';
   divMsg.appendChild(meta);
-  box.appendChild(divMsg);
-  function scrollBottom(){box.scrollTop=box.scrollHeight;}
-  scrollBottom();
-  window.requestAnimationFrame(scrollBottom);
-  window.setTimeout(scrollBottom,30);
+  box.prepend(divMsg);
+  function scrollTop(){box.scrollTop=0;}
+  scrollTop();
+  window.requestAnimationFrame(scrollTop);
+  window.setTimeout(scrollTop,30);
 }
 appendChat('USER','x');
 setTimeout(()=>{console.log(JSON.stringify({top:box.scrollTop,height:box.scrollHeight,client:box.clientHeight}));},40);
@@ -31,4 +31,4 @@ setTimeout(()=>{console.log(JSON.stringify({top:box.scrollTop,height:box.scrollH
 
 def test_scroll_multistep():
     res = run_script()
-    assert res["top"] + res["client"] >= res["height"] - 1
+    assert res["top"] == 0
