@@ -1,8 +1,5 @@
-# pragma: no cover
 from __future__ import annotations
-
 """Training utilities for the chatbot."""
-
 from pathlib import Path
 from typing import Any, Callable, Dict
 import logging
@@ -18,7 +15,6 @@ import json
 from datetime import datetime
 import math
 import argparse
-
 from .config import Config
 from .service.utils import to_config
 from .data.loader import QADataset
@@ -29,15 +25,16 @@ from .training_utils import (
     EarlyStopping,
     TorchQADataset,
     collate_fn,
-    load_checkpoint,
     save_checkpoint,
 )
-
 logger = logging.getLogger(__name__)
-
-
-
-
+def _to_device_state(opt_state: Dict[str, Dict[str, torch.Tensor]], device: torch.device) -> Dict[str, Dict[str, torch.Tensor]]:
+    """Move optimizer state tensors to target device."""
+    for state in opt_state.values():
+        for k, v in state.items():
+            if torch.is_tensor(v):
+                state[k] = v.to(device)
+    return opt_state
 def train(
     dataset_path: Path,
     cfg: Dict[str, Any] | Config,
@@ -46,6 +43,7 @@ def train(
     start_epoch: int = 0,
     meta_path: Path | None = None,
     resume: bool = True,
+    device: torch.device | None = None,
 ) -> Path:
     """Train model using dataset and configuration."""
     if not isinstance(cfg, Config):
@@ -58,7 +56,10 @@ def train(
         meta_path.parent.mkdir(parents=True, exist_ok=True)
     ckpt_dir = save_path.parent / "ckpts"
     ckpt_dir.mkdir(exist_ok=True)
-
+    if device is None:
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    else:
+        device = torch.device(device)
     if not torch.cuda.is_available():
         vocab = build_vocab(ds)
         model = Seq2SeqTransformer(vocab_size=len(vocab))
@@ -79,9 +80,7 @@ def train(
                 )
         logger.info("Training complete (dummy)")
         return save_path
-
     logger.info("Training started...")
-
     if len(ds) < 50:
         logger.warning("Dataset too small: %d entries", len(ds))
     tuner = AutoTuner(len(ds))
@@ -90,30 +89,27 @@ def train(
         "batch_size": cfg.batch_size or sugg.batch_size,
         "learning_rate": cfg.learning_rate or sugg.learning_rate,
         "epochs": cfg.num_epochs or sugg.num_epochs,
-        "device": "cuda" if torch.cuda.is_available() else "cpu",
     }
-
     vocab = build_vocab(ds)
     train_ds = TorchQADataset(ds, vocab)
     loader = DataLoader(
         train_ds, batch_size=params["batch_size"], shuffle=True, collate_fn=collate_fn
     )
-
-    device = params["device"]
     model = Seq2SeqTransformer(vocab_size=len(vocab))
     criterion = nn.CrossEntropyLoss(ignore_index=0)
     optimizer = optim.Adam(model.parameters(), lr=params["learning_rate"])
     scheduler = optim.lr_scheduler.StepLR(optimizer, 1)
-    ckpt, loaded_epoch = load_checkpoint(ckpt_dir, torch.device(device)) if resume else ({}, 0)
-    if ckpt:
+    if meta_path and meta_path.exists() and resume:
+        meta = json.load(open(meta_path))
+        ckpt_file = ckpt_dir / f"ckpt_{meta['last_epoch']:04}.pt"
+        ckpt = torch.load(ckpt_file, map_location=device)
         model.load_state_dict(ckpt["model_state"])
-        optimizer.load_state_dict(ckpt["optim_state"])
+        optimizer.load_state_dict(_to_device_state(ckpt["optim_state"], device))
         scheduler.load_state_dict(ckpt["scheduler_state"])
-        start_epoch = loaded_epoch
+        start_epoch = meta["last_epoch"] + 1
     elif start_epoch and save_path.exists():
         model.load_state_dict(torch.load(save_path, map_location=device))
     model.to(device)
-
     stopper = EarlyStopping(cfg.early_stopping_patience)
     max_epochs = params["epochs"]
     for epoch in range(start_epoch, max_epochs):
@@ -127,6 +123,9 @@ def train(
             if not math.isfinite(loss.item()):
                 raise RuntimeError(f"Non-finite loss detected: {loss.item()}")
             loss.backward()
+            for p in model.parameters():
+                if p.grad is not None:
+                    assert p.grad.device == device, "Gradient on wrong device"
             optimizer.step()
             total_loss += loss.item()
             if cfg.verbose:
@@ -154,7 +153,6 @@ def infer(question: str, cfg: Config, model_path: Path | None = None) -> str:
 
     ds = QADataset(Path("datas"))
     vocab = build_vocab(ds)
-
     model = Seq2SeqTransformer(vocab_size=len(vocab))
     model.load_state_dict(torch.load(model_path, map_location="cpu"))
     model.eval()
@@ -179,20 +177,22 @@ def infer(question: str, cfg: Config, model_path: Path | None = None) -> str:
     out = " ".join(result)
     return out or "No answer"
 
-
 def main() -> None:
     """CLI entry."""
     p = argparse.ArgumentParser()
     p.add_argument("--data-dir", default="datas")
     p.add_argument("--no-resume", action="store_true")
+    p.add_argument("--device", default="cuda", choices=["cuda", "cpu"])
     args = p.parse_args()
     cfg = Config()
     try:
-        train(Path(args.data_dir), cfg, resume=not args.no_resume)
+        device = torch.device(
+            "cuda" if torch.cuda.is_available() and args.device != "cpu" else "cpu"
+        )
+        train(Path(args.data_dir), cfg, resume=not args.no_resume, device=device)
     except Exception as exc:  # pragma: no cover - CLI
         print(exc)
         raise SystemExit(1)
-
 
 if __name__ == "__main__":  # pragma: no cover
     main()

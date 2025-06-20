@@ -1,0 +1,74 @@
+# File: docs/codex_directive_device_fix_20250620.txt
+# Purpose: Address device-mismatch crash and dependency-absent test failures without adding dependencies
+# Author: ChatGPT (o3)
+# Date: 2025-06-20
+
+## Absolute Constraints
+1. **No new dependency installation.** Do NOT call pip/npm/yarn/conda inside code or CI.
+2. **Allowed languages**: Python 3.x, HTML5, vanilla JavaScript (ES6). TypeScript remains prohibited.
+3. **Offline execution only** – network calls and package downloads are banned.
+4. Keep existing project layout; no extra build tools or configs.
+5. Deliver source files only; commit message:
+   `fix(train,tests): device-safe resume & dep-agnostic skips`
+
+## A. Training – Device-consistent Checkpoint Resume
+
+1. **Device selection**
+   ```python
+   device = torch.device("cuda" if torch.cuda.is_available() and args.device != "cpu" else "cpu")
+   model.to(device)
+   ```
+
+2. **Load checkpoint** (`src/training.py`)
+   ```python
+   def _to_device_state(opt_state, device):
+       for state in opt_state.values():
+           for k, v in state.items():
+               if torch.is_tensor(v):
+                   state[k] = v.to(device)
+       return opt_state
+
+   if meta_path.exists() and args.resume:
+       meta = json.load(open(meta_path))
+       ckpt = torch.load(checkpoints_dir / f'ckpt_{meta["last_epoch"]:04}.pt', map_location=device)
+       model.load_state_dict(ckpt["model_state"])
+       optimizer.load_state_dict(_to_device_state(ckpt["optim_state"], device))
+       scheduler.load_state_dict(ckpt["scheduler_state"])
+       start_epoch = meta["last_epoch"] + 1
+   else:
+       start_epoch = 0
+   ```
+
+3. **Training loop** – before `optimizer.step()` ensure gradients on same device:
+   ```python
+   for p in model.parameters():
+       if p.grad is not None:
+           assert p.grad.device == device, "Gradient on wrong device"
+   ```
+
+4. **Early-stopping resume** – if training already running, return clear status and skip second launch.
+
+5. **CLI flags** (`main.py`)
+   * `--device [cuda|cpu]` (default `cuda`)
+   * `--no-resume` to ignore checkpoints.
+
+## B. Tests – Skip when dependencies absent
+
+### `tests/conftest.py`
+```python
+import importlib.util, pytest
+torch_spec = importlib.util.find_spec("torch")
+if torch_spec is None:
+    pytest.skip("PyTorch not available in this environment", allow_module_level=True)
+```
+
+### JS (Jest) tests header
+```js
+try { require.resolve('react'); } catch { test.skip('React/Jest deps missing', () => {}); }
+```
+
+*This prevents Codex’s limited environment from hard-failing.*
+
+## C. UI – Confirmed OK
+No further UI changes required.
+
