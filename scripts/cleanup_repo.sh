@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-set -e
-git rm -r --cached node_modules dist models checkpoints || true
+git rm -r --cached models node_modules dist *.log || true
 git add .gitignore
-echo "[cleanup] repository sanitized"
+echo "[cleanup] done"

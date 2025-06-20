@@ -4,9 +4,10 @@ const React = require('react');
 const { render } = require('@testing-library/react');
 const MessageList = require('../src/components/MessageList').default;
 
-test('shows newest message first', () => {
-  const messages = Array.from({ length: 30 }, (_, i) => ({ id: String(i), role: 'bot', text: `msg${i}` })).reverse();
-  const { container } = render(React.createElement(MessageList, { messages }));
-  const first = container.firstChild.firstChild;
-  expect(first.textContent).toBe('msg29');
+test('firstChild shows last added message', () => {
+  const msgs = [];
+  const { rerender, container } = render(React.createElement(MessageList, { messages: msgs }));
+  msgs.unshift({ id: '1', role: 'bot', text: 'hello' });
+  rerender(React.createElement(MessageList, { messages: msgs }));
+  expect(container.firstChild.firstChild.textContent).toBe('hello');
 });

@@ -25,7 +25,6 @@ from .training_utils import (
     EarlyStopping,
     TorchQADataset,
     collate_fn,
-    save_checkpoint,
     migrate_optimizer_state,
     ensure_model_device,
 )
@@ -53,15 +52,13 @@ def train(
         save_path.parent.mkdir(parents=True, exist_ok=True)
         if meta_path:
             meta_path.parent.mkdir(parents=True, exist_ok=True)
-        ckpt_dir = save_path.parent / "ckpts"
-        ckpt_dir.mkdir(exist_ok=True)
         if device is None:
             device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         else:
             device = torch.device(
                 "cuda" if str(device) == "cuda" and torch.cuda.is_available() else "cpu"
             )
-        meta_file = meta_path or ckpt_dir / "current.meta.json"
+        meta_file = meta_path or save_path.with_suffix(".meta.json")
         if not torch.cuda.is_available():
             if resume and meta_file.exists():
                 try:
@@ -114,12 +111,8 @@ def train(
             except Exception as exc:
                 raise SystemExit(f"checkpoint load failed: {exc}")
             last_epoch = int(meta.get("last_epoch", 0))
-            ckpt_file = ckpt_dir / f"ckpt_{last_epoch:04}.pt"
-            if ckpt_file.exists():
-                ckpt = torch.load(ckpt_file, map_location=device)
-                model.load_state_dict(ckpt["model_state"])
-                optimizer.load_state_dict(ckpt["optim_state"])
-                scheduler.load_state_dict(ckpt["scheduler_state"])
+            if save_path.exists():
+                model.load_state_dict(torch.load(save_path, map_location=device))
                 model.to(device, non_blocking=True)
                 if not getattr(model, "_migrated", False):
                     migrate_optimizer_state(optimizer, device)
@@ -162,11 +155,11 @@ def train(
                 logger.info("Early stopping triggered at epoch %d", epoch)
                 break
             scheduler.step()
-            save_checkpoint(ckpt_dir, epoch, model, optimizer, scheduler, epoch_loss)
             best_loss = min(best_loss, epoch_loss)
             meta["last_epoch"] = epoch
             meta["best_loss"] = best_loss
             json.dump(meta, open(meta_file, "w"))
+            torch.save(model.state_dict(), save_path)
         torch.save(model.state_dict(), save_path)
         logger.info("Model saved to models/current.pth")
         logger.info("Training complete")

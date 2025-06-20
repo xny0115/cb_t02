@@ -10,5 +10,5 @@ def test_resume_loss(tmp_path):
     train(Path('datas'), cfg, model_path=model, resume=True)
     cfg.num_epochs = 5
     train(Path('datas'), cfg, model_path=model, resume=True)
-    meta = json.loads((model.parent / 'ckpts/current.meta.json').read_text())
+    meta = json.loads(model.with_suffix('.meta.json').read_text())
     assert meta['last_epoch'] == 5
