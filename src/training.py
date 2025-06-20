@@ -18,7 +18,7 @@ import argparse
 from .config import Config
 from .service.utils import to_config
 from .data.loader import QADataset
-from .utils.vocab import build_vocab, encode
+from .utils.vocab import build_vocab
 from .model.transformer import Seq2SeqTransformer
 from .tuning.auto import AutoTuner
 from .training_utils import (
@@ -107,24 +107,33 @@ def train(
         criterion = nn.CrossEntropyLoss(ignore_index=0)
         optimizer = optim.Adam(model.parameters(), lr=params["learning_rate"])
         scheduler = optim.lr_scheduler.StepLR(optimizer, 1)
+        last_epoch = -1
+        meta = {"last_epoch": -1, "best_loss": float("inf")}
         if meta_file.exists() and resume:
             try:
                 meta = json.load(open(meta_file))
+                last_epoch = int(meta.get("last_epoch", -1))
             except Exception as exc:
                 raise SystemExit(f"checkpoint load failed: {exc}")
-            ckpt_file = ckpt_dir / f"ckpt_{meta['last_epoch']:04}.pt"
-            ckpt = torch.load(ckpt_file, map_location=device)
-            model.load_state_dict(ckpt["model_state"])
-            optimizer.load_state_dict(ckpt["optim_state"])
-            scheduler.load_state_dict(ckpt["scheduler_state"])
-            model.to(device, non_blocking=True)
-            migrate_optimizer_state(optimizer, device)
-            ensure_model_device(model, device)
-            start_epoch = meta["last_epoch"] + 1
-        elif start_epoch and save_path.exists():
+            ckpt_file = ckpt_dir / f"ckpt_{last_epoch:04}.pt"
+            if ckpt_file.exists():
+                ckpt = torch.load(ckpt_file, map_location=device)
+                model.load_state_dict(ckpt["model_state"])
+                optimizer.load_state_dict(ckpt["optim_state"])
+                scheduler.load_state_dict(ckpt["scheduler_state"])
+                model.to(device, non_blocking=True)
+                migrate_optimizer_state(optimizer, device)
+        if cfg.num_epochs <= last_epoch:
+            logger.info(
+                "Requested epochs already completed (last=%d). Skipping training.",
+                last_epoch,
+            )
+            return save_path
+        start_epoch = max(start_epoch, last_epoch + 1)
+        if start_epoch and save_path.exists() and last_epoch < 0:
             model.load_state_dict(torch.load(save_path, map_location=device))
         model.to(device, non_blocking=True)
-        ensure_model_device(model, device)
+        ensure_model_device(model, device, once=False)
         stopper = EarlyStopping(cfg.early_stopping_patience)
         max_epochs = params["epochs"]
         for epoch in range(start_epoch, max_epochs):
@@ -152,43 +161,15 @@ def train(
                 break
             scheduler.step()
             save_checkpoint(ckpt_dir, epoch, model, optimizer, scheduler, epoch_loss)
+            meta["last_epoch"] = epoch
+            meta["best_loss"] = min(meta.get("best_loss", float("inf")), epoch_loss)
+            json.dump(meta, open(meta_file, "w"))
         torch.save(model.state_dict(), save_path)
         logger.info("Model saved to models/current.pth")
         logger.info("Training complete")
         return save_path
 
 
-def infer(question: str, cfg: Config, model_path: Path | None = None) -> str:
-    """Generate an answer using greedy decoding."""
-    model_path = model_path or Path("models") / "current.pth"
-    if not model_path.exists():
-        raise FileNotFoundError(model_path)
-
-    ds = QADataset(Path("datas"))
-    vocab = build_vocab(ds)
-    model = Seq2SeqTransformer(vocab_size=len(vocab))
-    model.load_state_dict(torch.load(model_path, map_location="cpu"))
-    model.eval()
-
-    ids = encode(question, vocab).unsqueeze(1)
-    device = next(model.parameters()).device
-    ids = ids.to(device)
-    tgt = torch.tensor([[vocab["<eos>"]]], dtype=torch.long, device=device)
-    for _ in range(cfg.max_sequence_length):
-        out = model(ids, tgt)
-        prob = out[-1, 0]
-        token = int(prob.argmax())
-        tgt = torch.cat([tgt, torch.tensor([[token]], device=device)])
-        if token == vocab["<eos>"]:
-            break
-    words = [k for k, v in vocab.items() if v not in (0, 1)]
-    result = []
-    for t in tgt.squeeze().tolist()[1:]:
-        if t == vocab["<eos>"]:
-            break
-        result.append(words[t - 2])
-    out = " ".join(result)
-    return out or "No answer"
 
 def main() -> None:
     """CLI entry."""
@@ -196,7 +177,7 @@ def main() -> None:
     p.add_argument("--data-dir", default="datas")
     p.add_argument("--no-resume", action="store_true")
     p.add_argument("--device", default="cuda", choices=["cuda", "cpu"])
-    p.add_argument("--epochs", type=int, default=None)
+    p.add_argument("--epochs", type=int, default=None, help="total target epochs")
     args = p.parse_args()
     cfg = Config()
     try:

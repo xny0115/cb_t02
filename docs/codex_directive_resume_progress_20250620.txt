@@ -1,0 +1,109 @@
+# File: docs/codex_directive_resume_progress_20250620.txt
+# Purpose: Fix non‑incremental resume (loss resets), eliminate repeated device migration logs,
+#          and expose training progress to UI
+# Audience: Codex backend agent
+# Author: ChatGPT (o3)
+# Date: 2025‑06‑20
+
+#####################################################################
+## 0. CRITICAL ISSUES
+#####################################################################
+1. **Resume logic broken** – training always starts at epoch 0; loss history resets.
+2. **Redundant device migration** – `Migrating 67 parameters to cuda` logs every epoch.
+3. **Frontend lacks training progress display** .
+
+#####################################################################
+## 1. RESUME LOGIC REWRITE
+#####################################################################
+### 1.1 Accurate epoch continuation
+* Metadata file: `checkpoints/current.meta.json`
+  ```json
+  { "last_epoch": 11, "best_loss": 4.9482 }
+  ```
+* Compute `start_epoch` and `remaining_epochs`:
+  ```python
+  meta = json.load(open(meta_path))
+  last_epoch = meta["last_epoch"]
+  start_epoch = last_epoch + 1
+  total_epochs = args.epochs
+  if total_epochs <= last_epoch:
+       log.info("Requested epochs already completed (last=%d). Skipping training.", last_epoch)
+       return
+  remaining_epochs = total_epochs - last_epoch
+  ```
+* At end of training loop update meta:
+  ```python
+  meta["last_epoch"] = epoch
+  meta["best_loss"] = min(meta.get("best_loss", float("inf")), running_loss)
+  json.dump(meta, open(meta_path, "w"))
+  ```
+
+### 1.2 CLI change
+`--epochs N` is **total target epochs**, not additional. Help text must reflect this.
+
+#####################################################################
+## 2. ELIMINATE REPEATED MIGRATION WARNINGS
+#####################################################################
+* After **first** call to `ensure_model_device(model, device)` store flag
+  `model._device_checked = True`.
+* Modify function:
+  ```python
+  def ensure_model_device(model, device, once=True):
+       if once and getattr(model, "_device_checked", False):
+           return
+       off = [...]
+       if off:
+           ...
+       model._device_checked = True
+  ```
+* Call with `once=True` inside epoch loop to suppress redundant logs.
+
+#####################################################################
+## 3. TRAINING STATUS ENDPOINT
+#####################################################################
+### 3.1 Backend
+* In `src/service/api.py` expose `/training/status` returning:
+  ```json
+  { "running": true,
+    "current_epoch": 7,
+    "total_epochs": 15,
+    "loss": 4.94 }
+  ```
+* Update during training:
+  ```python
+  status = {"running": True, "current_epoch": epoch, "total_epochs": total_epochs, "loss": running_loss}
+  Path("training_status.json").write_text(json.dumps(status))
+  ```
+### 3.2 Frontend
+* Add hook `useTrainingStatus()` polling every 2 s.
+* Display compact status bar above chat:
+  ```jsx
+  {status.running && (
+     <div className="bg-gray-800 text-xs text-white px-2 py-1">
+        Epoch {status.current_epoch}/{status.total_epochs} – loss {status.loss.toFixed(4)}
+     </div>
+  )}
+  ```
+
+#####################################################################
+## 4. UNIT / INTEGRATION TESTS
+#####################################################################
+### 4.1 tests/test_resume_logic.py
+* Pre‑create meta with `last_epoch=3`.
+* Run `train --epochs 10`.
+* Assert `current.meta.json["last_epoch"] == 9`.
+
+### 4.2 tests/test_status_endpoint.py
+* Mock service, hit `/training/status`, expect JSON keys.
+
+#####################################################################
+## 5. COMMIT MESSAGE
+#####################################################################
+`feat(train,ui): true resume, single device check, live progress bar`
+
+#####################################################################
+## 6. DEADLINE
+#####################################################################
+**90 minutes** from receipt.
+
+-- End of directive --

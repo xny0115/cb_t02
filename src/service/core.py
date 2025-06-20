@@ -94,6 +94,13 @@ class ChatbotService:
                 self._status_msg = f"{epoch}/{total} loss={loss:.4f}"
                 self._progress = epoch / total
                 self._last_loss = loss
+            status = {
+                "running": True,
+                "current_epoch": epoch,
+                "total_epochs": total,
+                "loss": loss,
+            }
+            Path("training_status.json").write_text(json.dumps(status))
             if time.time() - last >= 1:
                 last = time.time()
 
@@ -151,6 +158,19 @@ class ChatbotService:
             self.training = False
             self._status_msg = msg
             self._progress = 1.0 if msg == "done" else 0.0
+        end_meta = {}
+        if meta_path.exists():
+            try:
+                end_meta = json.load(open(meta_path))
+            except Exception:
+                end_meta = {}
+        status = {
+            "running": False,
+            "current_epoch": end_meta.get("last_epoch", 0),
+            "total_epochs": epochs,
+            "loss": self._last_loss,
+        }
+        Path("training_status.json").write_text(json.dumps(status))
 
     def start_training(self, data_path: str = ".") -> Dict[str, Any]:
         logging.getLogger().setLevel(
