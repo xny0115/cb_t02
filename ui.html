@@ -960,13 +960,7 @@
                 divMsg.appendChild(meta);
                 chatHistory.appendChild(divMsg);
 
-                function scrollBottom(){
-                    const box = document.getElementById('chatHistory');
-                    box.scrollTop = box.scrollHeight;
-                }
-                scrollBottom();
-                requestAnimationFrame(scrollBottom);
-                setTimeout(scrollBottom, 30);
+                divMsg.scrollIntoView({ block:'end' });
             }
 
             function onSend(){

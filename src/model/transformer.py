@@ -75,12 +75,14 @@ class Seq2SeqTransformer(nn.Module):
                     out[banned] = -float("inf")
             k = min(top_k, out.size(0))
             topk_val, topk_idx = out.topk(k)
-            prob = torch.softmax(topk_val, dim=-1)
-            if torch.sum(prob) <= 0 or not torch.isfinite(prob).all():
+            probs = torch.nan_to_num(
+                torch.softmax(topk_val, -1), nan=0.0, posinf=0.0
+            )
+            if probs.sum() <= 0:
                 logger.warning("multinomial fallback used at step %d", step)
                 next_id = topk_idx[0].view(1, 1)
             elif 0.0 < top_p < 1.0:
-                s_probs, s_idx = prob.sort(descending=True)
+                s_probs, s_idx = probs.sort(descending=True)
                 cum = s_probs.cumsum(dim=-1)
                 mask = cum > top_p
                 if mask.all():
@@ -91,7 +93,7 @@ class Seq2SeqTransformer(nn.Module):
                 idx = s_idx[choice].item()
                 next_id = topk_idx[idx].view(1, 1)
             else:
-                choice = torch.multinomial(prob, 1).item()
+                choice = torch.multinomial(probs, 1).item()
                 next_id = topk_idx[choice].view(1, 1)
             ys = torch.cat([ys, next_id], dim=0)
             if no_repeat_ngram > 1 and ys.size(0) >= no_repeat_ngram:
