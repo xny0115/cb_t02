@@ -1,0 +1,83 @@
+# File: docs/codex_directive_fix_20250620.txt
+# Purpose: Resolve outstanding issues – live progress UI, newest-first chat visibility, true resume without loss reset, suppress duplicate migration logs
+# Audience: Codex backend agent
+# Author: ChatGPT (o3)
+# Date: 2025-06-20
+
+#####################################################################
+## 0. SUMMARY OF FAILURES
+#####################################################################
+* **UI**
+  1. TrainingStatusBar not mounted → no progress visible.
+  2. New messages still buried: array order incorrect.
+* **Training**
+  1. Loss history resets: `running_loss` re-initialisation and meta update logic.
+  2. Device migration warning still repeats due to flag scope.
+* **Inference**
+  * Model returns empty string – sampling bug after sanitise.
+
+#####################################################################
+## 1. UI FIXES
+#####################################################################
+### 1.1 Mount status bar
+* In `App.jsx` (or ChatPage), render:
+  ```jsx
+  import TrainingStatusBar from "./components/TrainingStatusBar";
+  ...
+  <TrainingStatusBar />
+  <ChatWindow />
+  ```
+### 1.2 Message ordering
+* When adding new message:
+  ```js
+  setMessages(prev => [newMsg, ...prev]);
+  ```
+* Ensure `MessageList.jsx` uses `flex-col` (not reverse) since array is pre-reversed, OR keep old order & stick with `flex-col-reverse`. Choose **ONE** consistent strategy:
+  - **Preferred**: prepend + `flex-col` (simpler).
+* Update test `ui_scroll.test.js` to reflect.
+
+#####################################################################
+## 2. TRAINING PIPELINE
+#####################################################################
+### 2.1 Preserve loss history
+* Initialise `best_loss = meta.get("best_loss", float('inf'))`.
+* Update `best_loss = min(best_loss, running_loss)` AFTER epoch end.
+* Save meta once per epoch **after** successful checkpoint save.
+
+### 2.2 Correct resume epochs
+* Compute `remaining_epochs = args.epochs - last_epoch`.
+* Loop `for epoch in range(last_epoch+1, args.epochs+1):`.
+
+### 2.3 Suppress duplicate device logs
+* Store flag on model **class** attr:
+  ```python
+  if not getattr(model, "_device_checked_once", False):
+      ensure_model_device(...)
+      model._device_checked_once = True
+  ```
+  Call only after checkpoint load, not in epoch loop.
+
+#####################################################################
+## 3. SAMPLING EMPTY OUTPUT BUG
+#####################################################################
+* `sanitize_probs()` currently zeroes all probs if NaN/Inf – leads to empty output.
+* After sanitise, if `probs.sum()==0`, set uniform `probs.fill_(1/probs.numel())`.
+
+#####################################################################
+## 4. TESTS
+#####################################################################
+* `tests/test_chat_order.py` – assert newest visible.
+* `tests/test_progress_api.py` – hit `/training/status`, expect keys.
+* `tests/test_resume_loss.py` – train 3 epochs, resume to 5, assert `last_epoch==5`.
+
+#####################################################################
+## 5. COMMIT MESSAGE
+#####################################################################
+`fix(ui,train,infer): mount progress bar, prepend chat msgs, stable resume & sampling`
+
+#####################################################################
+## 6. DEADLINE
+#####################################################################
+**60 minutes** from receipt.
+
+-- End of directive --
