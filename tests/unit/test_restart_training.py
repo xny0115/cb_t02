@@ -16,5 +16,5 @@ def test_restart_training(tmp_path, caplog):
     caplog.set_level(logging.INFO)
     svc.train(Path("datas"))
     again = json.load(open(meta))
-    assert again["epochs_done"] == 1
-    assert any("retrain requested" in r.message for r in caplog.records)
+    assert again["epochs_done"] == 2
+    assert any("resume training from epoch 1" in r.message for r in caplog.records)

@@ -100,6 +100,7 @@ class ChatbotService:
         log_gpu_memory()
         meta_path = self.model_path.with_suffix(".meta.json")
         start_ep = 0
+        cfg_local = cfg.copy()
         if self.model_path.exists() and meta_path.exists():
             try:
                 meta = json.load(open(meta_path))
@@ -108,8 +109,10 @@ class ChatbotService:
                 start_ep = 0
             logger.info("resume training from epoch %d", start_ep)
             if start_ep >= epochs:
-                logger.info("retrain requested; restarting from epoch 0")
-                start_ep = 0
+                logger.info(
+                    "continue training for %d more epochs", epochs
+                )
+                cfg_local["epochs"] = start_ep + epochs
         elif meta_path.exists() and not self.model_path.exists():
             try:
                 meta_path.unlink()
@@ -118,7 +121,7 @@ class ChatbotService:
         try:
             train(
                 path,
-                cfg,
+                cfg_local,
                 progress_cb=progress,
                 model_path=self.model_path,
                 start_epoch=start_ep,
