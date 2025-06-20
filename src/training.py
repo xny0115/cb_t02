@@ -107,16 +107,13 @@ def train(
         criterion = nn.CrossEntropyLoss(ignore_index=0)
         optimizer = optim.Adam(model.parameters(), lr=params["learning_rate"])
         scheduler = optim.lr_scheduler.StepLR(optimizer, 1)
-        last_epoch = 0
-        best_loss = float("inf")
-        meta = {"last_epoch": 0, "best_loss": best_loss}
+        meta = {"last_epoch": 0, "best_loss": float("inf")}
         if meta_file.exists() and resume:
             try:
                 meta = json.load(open(meta_file))
-                last_epoch = int(meta.get("last_epoch", 0))
-                best_loss = float(meta.get("best_loss", float("inf")))
             except Exception as exc:
                 raise SystemExit(f"checkpoint load failed: {exc}")
+            last_epoch = int(meta.get("last_epoch", 0))
             ckpt_file = ckpt_dir / f"ckpt_{last_epoch:04}.pt"
             if ckpt_file.exists():
                 ckpt = torch.load(ckpt_file, map_location=device)
@@ -124,22 +121,25 @@ def train(
                 optimizer.load_state_dict(ckpt["optim_state"])
                 scheduler.load_state_dict(ckpt["scheduler_state"])
                 model.to(device, non_blocking=True)
-                migrate_optimizer_state(optimizer, device)
+                if not getattr(model, "_migrated", False):
+                    migrate_optimizer_state(optimizer, device)
+                    model._migrated = True
+        else:
+            last_epoch = 0
         if not getattr(model, "_device_checked_once", False):
             ensure_model_device(model, device, once=False)
             model._device_checked_once = True
-        if cfg.num_epochs <= last_epoch:
-            logger.info(
-                "Requested epochs already completed (last=%d). Skipping training.",
-                last_epoch,
-            )
+        start_epoch = last_epoch + 1
+        max_epochs = params["epochs"]
+        if start_epoch > max_epochs:
+            logger.info("Target epochs already met.")
             return save_path
         if save_path.exists() and last_epoch == 0 and start_epoch:
             model.load_state_dict(torch.load(save_path, map_location=device))
         model.to(device, non_blocking=True)
         stopper = EarlyStopping(cfg.early_stopping_patience)
-        max_epochs = params["epochs"]
-        for epoch in range(last_epoch + 1, max_epochs + 1):
+        best_loss = float(meta.get("best_loss", float("inf")))
+        for epoch in range(start_epoch, max_epochs + 1):
             model.train()
             total_loss = 0.0
             for step, (src, tgt) in enumerate(loader, start=1):

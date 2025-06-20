@@ -13,11 +13,11 @@ from torch import nn
 def _sanitize_probs(probs: torch.Tensor) -> torch.Tensor:
     """Ensure probability distribution sums to 1."""
     probs = torch.nan_to_num(probs, nan=0.0, posinf=0.0, neginf=0.0)
-    s = probs.sum()
-    if s == 0:
+    if probs.sum() == 0:
         probs.fill_(1.0 / probs.numel())
+        probs /= probs.sum()
     else:
-        probs.div_(s)
+        probs.div_(probs.sum())
     return probs
 
 logger = logging.getLogger(__name__)
