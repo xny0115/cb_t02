@@ -40,7 +40,9 @@ class ChatbotService:
         self._model = None
         self._lock = Lock()
         self._thread: Thread | None = None
-        self._dataset = load_all(Path("datas"))
+        self._dataset = load_all(Path.cwd() / "datas")
+        assert self._dataset, "No samples loaded"
+        logger.info("dataset size=%d", len(self._dataset))
         self.auto_tune()
         if self.model_exists:
             self._tokenizer, self._model = load_model(self.model_path)
