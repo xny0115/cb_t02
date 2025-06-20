@@ -963,10 +963,7 @@
                 divMsg.appendChild(meta);
                 chatHistory.appendChild(divMsg);
 
-                function scrollBottom(){ chatHistory.scrollTop = chatHistory.scrollHeight; }
-                scrollBottom();
-                requestAnimationFrame(scrollBottom);
-                setTimeout(scrollBottom, 30);
+                divMsg.scrollIntoView({ behavior: 'smooth' });
             }
 
             function onSend(){
