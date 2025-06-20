@@ -172,14 +172,11 @@
             max-width: 80%;
             opacity: 0;
             transform: translateY(10px);
-            animation: fadeIn 0.3s ease-out forwards;
         }
-
-        @keyframes fadeIn {
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
+        .message.animate {
+            opacity: 1;
+            transform: translateY(0);
+            transition: opacity 0.3s ease, transform 0.3s ease;
         }
 
         .message-content {
@@ -214,6 +211,13 @@
             flex-direction: column;
             margin: 50px 0;
             max-width: 80%;
+            opacity: 0;
+            transform: translateY(10px);
+        }
+        .chat-msg.animate {
+            opacity: 1;
+            transform: translateY(0);
+            transition: opacity 0.3s ease, transform 0.3s ease;
         }
         .chat-msg.user {
             display: flex;
@@ -718,6 +722,10 @@
             const mainContainer = document.querySelector('.main-container');
             const messages = [];
 
+            document.querySelectorAll('.chat-msg, .message').forEach(el => {
+                requestAnimationFrame(() => el.classList.add('animate'));
+            });
+
             // 메시지 입력창 높이 자동 조절 함수
             function adjustInputHeight() {
                 userInput.style.height = 'auto'; // 높이 초기화
@@ -982,6 +990,10 @@
                 wrap.appendChild(bubble);
                 wrap.appendChild(meta);
                 chatHistory.appendChild(wrap);
+
+                requestAnimationFrame(() => {
+                    wrap.classList.add('animate');
+                });
 
                 wrap.scrollIntoView({ behavior: 'smooth' });
             }
