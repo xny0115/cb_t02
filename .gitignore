@@ -1,2 +1,16 @@
-node_modules/
+# Python
 __pycache__/
+*.py[cod]
+*.pkl
+# Node
+node_modules/
+dist/
+# Checkpoints & logs
+models/
+checkpoints/
+training_status.json
+.training.lock
+wheelhouse/
+# IDE
+.vscode/
+.idea/

@@ -1,0 +1,117 @@
+# File: docs/codex_directive_emergency_20250621.txt
+# Purpose: Emergency order – resolve remaining training/UI bugs, clean repository
+# Audience: Codex backend agent
+# Author: ChatGPT (o3)
+# Date: 2025‑20-06-21
+
+#####################################################################
+## 0. NON‑NEGOTIABLE SUMMARY
+#####################################################################
+* 학습은 에포흐 재가용에･loss 관리가 불안정하며, UI 최신 메시지･진행 바가 동작하지 않는다.
+* 불필요한 디버그･케시 파일이 Git 에 포함되어 레포 붜피가 강한다.
+* 반복되는 등록만 한 번마다 포함, 식간 전체를 지하한다. (Simplified note!).
+
+#####################################################################
+## 1. CHAT UI – 최신 메시지 상단 고정 & 진행 바 표시
+#####################################################################
+1. **Message flow**
+   ```js
+   // ChatWindow.jsx
+   setMessages(prev => [newMsg, ...prev]);
+   ```
+2. **List container**
+   ```jsx
+   <ul className="flex flex-col overflow-y-auto h-full min-h-0">
+   ```
+3. **Mount progress bar**
+   ```jsx
+   <TrainingStatusBar />
+   <ChatWindow />
+   ```
+4. **Jest test** `tests/ui_chat_order.test.js` – 추가 후 firstChild === newest.
+
+#####################################################################
+## 2. TRAINING – 정확한 resume & log 정리
+#####################################################################
+### 2.1 메타 스키마(고정)
+```json
+{ "last_epoch": int, "best_loss": float }
+```
+### 2.2 재가 로직
+```python
+meta = json.load(open(meta_path))
+start_epoch = meta["last_epoch"] + 1
+if start_epoch > args.epochs:
+    log.info("Target epochs already met."); return
+for epoch in range(start_epoch, args.epochs + 1):
+    ...
+    meta["last_epoch"] = epoch
+    meta["best_loss"] = min(meta["best_loss"], running_loss)
+    json.dump(meta, open(meta_path, "w"))
+```
+### 2.3 device migrate 로그 1회만
+```python
+if not getattr(model, "_migrated", False):
+    migrate_optimizer_state(...); model._migrated = True
+```
+
+### 2.4 sanitize empty probs
+```python
+if probs.sum() == 0:
+    probs.fill_(1 / probs.numel())
+    probs /= probs.sum()
+```
+
+#####################################################################
+## 3. 레포 정리 (.gitignore + 스크립트)
+#####################################################################
+### 3.1 `.gitignore` 보감
+```
+# Python
+__pycache__/
+*.py[cod]
+*.pkl
+# Node
+node_modules/
+dist/
+# Checkpoints & logs
+models/
+checkpoints/
+training_status.json
+.training.lock
+wheelhouse/
+# IDE
+.vscode/
+.idea/
+```
+### 3.2 청소 스크립트 `scripts/cleanup_repo.sh`
+```bash
+#!/usr/bin/env bash
+set -e
+git rm -r --cached node_modules dist models checkpoints || true
+git add .gitignore
+echo "[cleanup] repository sanitized"
+```
+
+#####################################################################
+## 4. 필수 테스트
+#####################################################################
+* `pytest -q`  (CPU 환경에서도 통과)
+* `npm test -- --coverage`
+* 수동 시나리오
+  1. 15개포크 학습 → 중단
+  2. `--epochs 15` 재실행 → “already met” 메시지, 학습 거넨랄
+  3. `--epochs 18` → 16~18 에포크만 실행
+  4. UI: 최신 답변이 상단, TrainingStatusBar 진행률 갱신
+
+#####################################################################
+## 5. 커미팅 메시지
+#####################################################################
+`fix(core,ui,repo): stable resume, top‑first chat, repo cleanup`
+
+#####################################################################
+## 6. DEADLINE
+#####################################################################
+**60 minutes** from receipt – FAILURE = 즉시 보고.
+
+-- End of directive --
