@@ -43,3 +43,77 @@ def collate_fn(batch: Iterable[tuple[Any, Any]]):
     qs = nn.utils.rnn.pad_sequence(qs, padding_value=0)
     as_ = nn.utils.rnn.pad_sequence(as_, padding_value=0)
     return qs, as_
+
+from pathlib import Path
+import json
+from typing import Any, Tuple
+import torch
+from torch import nn, optim
+
+
+def load_checkpoint(ckpt_dir: Path, device: torch.device) -> Tuple[dict[str, Any], int]:
+    """Load checkpoint data and starting epoch.
+
+    Parameters
+    ----------
+    ckpt_dir : Path
+        Directory containing checkpoint files.
+    device : torch.device
+        Target device for loading tensors.
+
+    Returns
+    -------
+    Tuple[dict[str, Any], int]
+        Checkpoint dictionary and epoch to resume from.
+    """
+    meta_file = ckpt_dir / "current.meta.json"
+    if not meta_file.exists():
+        return {}, 0
+    try:
+        meta = json.loads(meta_file.read_text())
+        ckpt_path = ckpt_dir / f"ckpt_{meta['last_epoch']:04}.pt"
+        ckpt = torch.load(ckpt_path, map_location=device)
+    except Exception as exc:  # pragma: no cover - corruption handling
+        raise SystemExit(f"checkpoint load failed: {exc}")
+    start_epoch = int(meta.get("last_epoch", -1)) + 1
+    return ckpt, start_epoch
+
+
+def save_checkpoint(
+    ckpt_dir: Path,
+    epoch: int,
+    model: nn.Module,
+    optimizer: optim.Optimizer,
+    scheduler: optim.lr_scheduler._LRScheduler,
+    loss: float,
+) -> None:
+    """Persist training state to disk.
+
+    Parameters
+    ----------
+    ckpt_dir : Path
+        Directory where checkpoint files are written.
+    epoch : int
+        Current training epoch.
+    model : nn.Module
+        Model to save.
+    optimizer : optim.Optimizer
+        Optimizer instance.
+    scheduler : optim.lr_scheduler._LRScheduler
+        Scheduler instance.
+    loss : float
+        Latest epoch loss.
+    """
+    ckpt_dir.mkdir(exist_ok=True)
+    ckpt = {
+        "epoch": epoch,
+        "model_state": model.state_dict(),
+        "optim_state": optimizer.state_dict(),
+        "scheduler_state": scheduler.state_dict(),
+        "loss": loss,
+    }
+    torch.save(ckpt, ckpt_dir / f"ckpt_{epoch:04}.pt")
+    meta = {"last_epoch": epoch, "last_loss": loss}
+    (ckpt_dir / "current.meta.json").write_text(json.dumps(meta))
+
+
