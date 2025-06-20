@@ -192,7 +192,6 @@
         }
 
         .message.user {
-            margin-left: auto;
             flex-direction: row-reverse;
         }
         .message.user .message-content {
@@ -216,7 +215,13 @@
             margin: 50px 0;
             max-width: 80%;
         }
-        .chat-msg.user { align-items: flex-end; }
+        .chat-msg.user {
+            display: flex;
+            justify-content: flex-end;
+            align-items: flex-end;
+            width: 100%;
+            max-width: 100%;
+        }
         .chat-msg.bot { align-items: flex-start; }
 
         .user-msg, .bot-msg {
