@@ -3,16 +3,16 @@ from __future__ import annotations
 
 """Training utilities for the chatbot."""
 
-from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable, Iterable, Dict
-
+from typing import Any, Callable, Dict
 import logging
 import torch
 from torch import nn, optim
-from torch.utils.data import DataLoader, Dataset
+from torch.utils.data import DataLoader
 import json
 from datetime import datetime
+import math
+import argparse
 
 from .config import Config
 from .service.utils import to_config
@@ -20,52 +20,11 @@ from .data.loader import QADataset
 from .utils.vocab import build_vocab, encode
 from .model.transformer import Seq2SeqTransformer
 from .tuning.auto import AutoTuner
+from .training_utils import EarlyStopping, TorchQADataset, collate_fn
 
 logger = logging.getLogger(__name__)
 
 
-@dataclass
-class EarlyStopping:
-    """Simple early stopping tracker."""
-
-    patience: int
-    best_loss: float | None = None
-    counter: int = 0
-
-    def step(self, loss: float) -> bool:
-        """Return True if training should stop."""
-        if self.best_loss is None or loss < self.best_loss:
-            self.best_loss = loss
-            self.counter = 0
-            return False
-        self.counter += 1
-        return self.counter >= self.patience
-
-
-class TorchQADataset(Dataset):
-    """PyTorch dataset wrapper."""
-
-    def __init__(self, data: QADataset, vocab: dict[str, int]) -> None:
-        if not vocab:
-            raise ValueError("empty vocab")
-        self.data = data
-        self.vocab = vocab
-
-    def __len__(self) -> int:
-        return len(self.data)
-
-    def __getitem__(self, idx: int):
-        q, a = self.data[idx]
-        if not q or not a:
-            raise ValueError("invalid pair")
-        return encode(q, self.vocab), encode(a, self.vocab)
-
-
-def collate_fn(batch: Iterable[tuple[Any, Any]]):
-    qs, as_ = zip(*batch)
-    qs = nn.utils.rnn.pad_sequence(qs, padding_value=0)
-    as_ = nn.utils.rnn.pad_sequence(as_, padding_value=0)
-    return qs, as_
 
 
 def train(
@@ -75,6 +34,7 @@ def train(
     model_path: Path | None = None,
     start_epoch: int = 0,
     meta_path: Path | None = None,
+    resume: bool = True,
 ) -> Path:
     """Train model using dataset and configuration."""
     if not isinstance(cfg, Config):
@@ -85,6 +45,8 @@ def train(
     save_path.parent.mkdir(parents=True, exist_ok=True)
     if meta_path:
         meta_path.parent.mkdir(parents=True, exist_ok=True)
+    ckpt_dir = save_path.parent / "ckpts"
+    ckpt_dir.mkdir(exist_ok=True)
 
     if not torch.cuda.is_available():
         vocab = build_vocab(ds)
@@ -128,14 +90,25 @@ def train(
 
     device = params["device"]
     model = Seq2SeqTransformer(vocab_size=len(vocab))
-    if start_epoch and save_path.exists():
-        model.load_state_dict(torch.load(save_path, map_location=device))
     criterion = nn.CrossEntropyLoss(ignore_index=0)
     optimizer = optim.Adam(model.parameters(), lr=params["learning_rate"])
+    scheduler = optim.lr_scheduler.StepLR(optimizer, 1)
+    meta_file = ckpt_dir / "current.meta.json"
+    if resume and meta_file.exists():
+        try:
+            meta = json.loads(meta_file.read_text())
+            ckpt = torch.load(ckpt_dir / f"ckpt_{meta['last_epoch']:04}.pt", map_location=device)
+        except Exception as exc:
+            raise SystemExit(f"checkpoint load failed: {exc}")
+        model.load_state_dict(ckpt["model_state"])
+        optimizer.load_state_dict(ckpt["optim_state"])
+        scheduler.load_state_dict(ckpt["scheduler_state"])
+        start_epoch = meta["last_epoch"] + 1
+    elif start_epoch and save_path.exists():
+        model.load_state_dict(torch.load(save_path, map_location=device))
     model.to(device)
 
     stopper = EarlyStopping(cfg.early_stopping_patience)
-
     max_epochs = params["epochs"]
     for epoch in range(start_epoch, max_epochs):
         model.train()
@@ -145,6 +118,8 @@ def train(
             optimizer.zero_grad()
             output = model(src, tgt[:-1, :])
             loss = criterion(output.reshape(-1, len(vocab)), tgt[1:, :].reshape(-1))
+            if not math.isfinite(loss.item()):
+                raise RuntimeError(f"Non-finite loss detected: {loss.item()}")
             loss.backward()
             optimizer.step()
             total_loss += loss.item()
@@ -157,16 +132,17 @@ def train(
         if stopper.step(epoch_loss):
             logger.info("Early stopping triggered at epoch %d", epoch + 1)
             break
-
-        torch.save(model.state_dict(), save_path)
-        if meta_path:
-            json.dump(
-                {
-                    "epochs_done": epoch + 1,
-                    "update_time": datetime.utcnow().isoformat(),
-                },
-                open(meta_path, "w"),
-            )
+        scheduler.step()
+        ckpt = {
+            "epoch": epoch,
+            "model_state": model.state_dict(),
+            "optim_state": optimizer.state_dict(),
+            "scheduler_state": scheduler.state_dict(),
+            "loss": epoch_loss,
+        }
+        torch.save(ckpt, ckpt_dir / f"ckpt_{epoch:04}.pt")
+        meta_file.write_text(json.dumps({"last_epoch": epoch, "last_loss": epoch_loss}))
+    torch.save(model.state_dict(), save_path)
     logger.info("Model saved to models/current.pth")
     logger.info("Training complete")
     return save_path
@@ -204,3 +180,21 @@ def infer(question: str, cfg: Config, model_path: Path | None = None) -> str:
         result.append(words[t - 2])
     out = " ".join(result)
     return out or "No answer"
+
+
+def main() -> None:
+    """CLI entry."""
+    p = argparse.ArgumentParser()
+    p.add_argument("--resume", action="store_true", default=True)
+    p.add_argument("--data-dir", default="datas")
+    args = p.parse_args()
+    cfg = Config()
+    try:
+        train(Path(args.data_dir), cfg, resume=args.resume)
+    except Exception as exc:  # pragma: no cover - CLI
+        print(exc)
+        raise SystemExit(1)
+
+
+if __name__ == "__main__":  # pragma: no cover
+    main()

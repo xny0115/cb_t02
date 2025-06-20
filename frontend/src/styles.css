@@ -1,0 +1,7 @@
+#chatMessages {
+  display: flex;
+  flex-direction: column-reverse;
+  overflow-y: auto;
+  height: 100%;
+  min-height: 0;
+}

@@ -1,0 +1,30 @@
+{
+  "name": "cb_t02",
+  "version": "1.0.0",
+  "description": "이 프로젝트는 Windows 10 + RTX 4060 기반에서 구동되는 한국어 챗봇 학습 시스템입니다.   PyTorch 2.3.0 (CUDA 11.8 GPU 전용), torchtext 0.18.0 환경을 요구합니다.",
+  "main": "index.js",
+  "directories": {
+    "test": "tests"
+  },
+  "scripts": {
+    "test": "jest --coverage"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "devDependencies": {
+    "@testing-library/jest-dom": "^6.6.3",
+    "@testing-library/react": "^16.3.0",
+    "@types/jest": "^30.0.0",
+    "@types/react": "^19.1.8",
+    "@types/react-dom": "^19.1.6",
+    "jest": "^30.0.2",
+    "jest-environment-jsdom": "^30.0.2",
+    "jsdom": "^26.1.0",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "ts-jest": "^29.4.0",
+    "typescript": "^5.8.3"
+  }
+}
