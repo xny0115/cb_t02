@@ -46,103 +46,113 @@ def train(
     device: torch.device | None = None,
 ) -> Path:
     """Train model using dataset and configuration."""
-    if not isinstance(cfg, Config):
-        cfg = to_config(cfg)
-    assert isinstance(cfg.num_epochs, int) and cfg.num_epochs > 0, "epochs must be int"
-    ds = QADataset(dataset_path)
-    save_path = model_path or Path("models") / "current.pth"
-    save_path.parent.mkdir(parents=True, exist_ok=True)
-    if meta_path:
-        meta_path.parent.mkdir(parents=True, exist_ok=True)
-    ckpt_dir = save_path.parent / "ckpts"
-    ckpt_dir.mkdir(exist_ok=True)
-    if device is None:
-        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    else:
-        device = torch.device(device)
-    if not torch.cuda.is_available():
+    lock_file = Path('.training.lock')
+    if lock_file.exists():
+        raise RuntimeError('training already running')
+    lock_file.write_text('1')
+    try:
+        if not isinstance(cfg, Config):
+            cfg = to_config(cfg)
+        assert isinstance(cfg.num_epochs, int) and cfg.num_epochs > 0, "epochs must be int"
+        ds = QADataset(dataset_path)
+        save_path = model_path or Path("models") / "current.pth"
+        save_path.parent.mkdir(parents=True, exist_ok=True)
+        if meta_path:
+            meta_path.parent.mkdir(parents=True, exist_ok=True)
+        ckpt_dir = save_path.parent / "ckpts"
+        ckpt_dir.mkdir(exist_ok=True)
+        if device is None:
+            device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        else:
+            device = torch.device(device)
+        if not torch.cuda.is_available():
+            vocab = build_vocab(ds)
+            model = Seq2SeqTransformer(vocab_size=len(vocab))
+            if start_epoch and save_path.exists():
+                model.load_state_dict(torch.load(save_path, map_location="cpu"))
+            torch.save(model.state_dict(), save_path)
+            for e in range(start_epoch, cfg.num_epochs):
+                if progress_cb:
+                    progress_cb(e + 1, cfg.num_epochs, 0.0)
+                logger.info("epoch %d/%d | loss=0.0000", e + 1, cfg.num_epochs)
+                if meta_path:
+                    json.dump(
+                        {
+                            "epochs_done": e + 1,
+                            "update_time": datetime.utcnow().isoformat(),
+                        },
+                        open(meta_path, "w"),
+                    )
+            logger.info("Training complete (dummy)")
+            return save_path
+        logger.info("Training started...")
+        if len(ds) < 50:
+            logger.warning("Dataset too small: %d entries", len(ds))
+        tuner = AutoTuner(len(ds))
+        sugg = tuner.suggest_config()
+        params = {
+            "batch_size": cfg.batch_size or sugg.batch_size,
+            "learning_rate": cfg.learning_rate or sugg.learning_rate,
+            "epochs": cfg.num_epochs or sugg.num_epochs,
+        }
         vocab = build_vocab(ds)
+        train_ds = TorchQADataset(ds, vocab)
+        loader = DataLoader(
+            train_ds, batch_size=params["batch_size"], shuffle=True, collate_fn=collate_fn
+        )
         model = Seq2SeqTransformer(vocab_size=len(vocab))
-        if start_epoch and save_path.exists():
-            model.load_state_dict(torch.load(save_path, map_location="cpu"))
-        torch.save(model.state_dict(), save_path)
-        for e in range(start_epoch, cfg.num_epochs):
+        criterion = nn.CrossEntropyLoss(ignore_index=0)
+        optimizer = optim.Adam(model.parameters(), lr=params["learning_rate"])
+        scheduler = optim.lr_scheduler.StepLR(optimizer, 1)
+        if meta_path and meta_path.exists() and resume:
+            meta = json.load(open(meta_path))
+            ckpt_file = ckpt_dir / f"ckpt_{meta['last_epoch']:04}.pt"
+            ckpt = torch.load(ckpt_file, map_location=device)
+            model.load_state_dict(ckpt["model_state"])
+            optimizer.load_state_dict(_to_device_state(ckpt["optim_state"], device))
+            scheduler.load_state_dict(ckpt["scheduler_state"])
+            start_epoch = meta["last_epoch"] + 1
+        elif start_epoch and save_path.exists():
+            model.load_state_dict(torch.load(save_path, map_location=device))
+        model.to(device)
+        stopper = EarlyStopping(cfg.early_stopping_patience)
+        max_epochs = params["epochs"]
+        for epoch in range(start_epoch, max_epochs):
+            model.train()
+            total_loss = 0.0
+            for step, (src, tgt) in enumerate(loader, start=1):
+                src, tgt = src.to(device), tgt.to(device)
+                optimizer.zero_grad()
+                output = model(src, tgt[:-1, :])
+                loss = criterion(output.reshape(-1, len(vocab)), tgt[1:, :].reshape(-1))
+                if not math.isfinite(loss.item()):
+                    raise RuntimeError(f"Non-finite loss detected: {loss.item()}")
+                loss.backward()
+                for p in model.parameters():
+                    if p.grad is not None:
+                        assert p.grad.device == device, "Gradient on wrong device"
+                optimizer.step()
+                total_loss += loss.item()
+                if cfg.verbose:
+                    logger.debug("step %d loss %.4f", step, loss.item())
+            epoch_loss = total_loss / len(loader)
+            logger.info("epoch %d/%d | loss=%.4f", epoch + 1, max_epochs, epoch_loss)
             if progress_cb:
-                progress_cb(e + 1, cfg.num_epochs, 0.0)
-            logger.info("epoch %d/%d | loss=0.0000", e + 1, cfg.num_epochs)
-            if meta_path:
-                json.dump(
-                    {
-                        "epochs_done": e + 1,
-                        "update_time": datetime.utcnow().isoformat(),
-                    },
-                    open(meta_path, "w"),
-                )
-        logger.info("Training complete (dummy)")
+                progress_cb(epoch + 1, max_epochs, epoch_loss)
+            if stopper.step(epoch_loss):
+                logger.info("Early stopping triggered at epoch %d", epoch + 1)
+                break
+            scheduler.step()
+            save_checkpoint(ckpt_dir, epoch, model, optimizer, scheduler, epoch_loss)
+        torch.save(model.state_dict(), save_path)
+        logger.info("Model saved to models/current.pth")
+        logger.info("Training complete")
         return save_path
-    logger.info("Training started...")
-    if len(ds) < 50:
-        logger.warning("Dataset too small: %d entries", len(ds))
-    tuner = AutoTuner(len(ds))
-    sugg = tuner.suggest_config()
-    params = {
-        "batch_size": cfg.batch_size or sugg.batch_size,
-        "learning_rate": cfg.learning_rate or sugg.learning_rate,
-        "epochs": cfg.num_epochs or sugg.num_epochs,
-    }
-    vocab = build_vocab(ds)
-    train_ds = TorchQADataset(ds, vocab)
-    loader = DataLoader(
-        train_ds, batch_size=params["batch_size"], shuffle=True, collate_fn=collate_fn
-    )
-    model = Seq2SeqTransformer(vocab_size=len(vocab))
-    criterion = nn.CrossEntropyLoss(ignore_index=0)
-    optimizer = optim.Adam(model.parameters(), lr=params["learning_rate"])
-    scheduler = optim.lr_scheduler.StepLR(optimizer, 1)
-    if meta_path and meta_path.exists() and resume:
-        meta = json.load(open(meta_path))
-        ckpt_file = ckpt_dir / f"ckpt_{meta['last_epoch']:04}.pt"
-        ckpt = torch.load(ckpt_file, map_location=device)
-        model.load_state_dict(ckpt["model_state"])
-        optimizer.load_state_dict(_to_device_state(ckpt["optim_state"], device))
-        scheduler.load_state_dict(ckpt["scheduler_state"])
-        start_epoch = meta["last_epoch"] + 1
-    elif start_epoch and save_path.exists():
-        model.load_state_dict(torch.load(save_path, map_location=device))
-    model.to(device)
-    stopper = EarlyStopping(cfg.early_stopping_patience)
-    max_epochs = params["epochs"]
-    for epoch in range(start_epoch, max_epochs):
-        model.train()
-        total_loss = 0.0
-        for step, (src, tgt) in enumerate(loader, start=1):
-            src, tgt = src.to(device), tgt.to(device)
-            optimizer.zero_grad()
-            output = model(src, tgt[:-1, :])
-            loss = criterion(output.reshape(-1, len(vocab)), tgt[1:, :].reshape(-1))
-            if not math.isfinite(loss.item()):
-                raise RuntimeError(f"Non-finite loss detected: {loss.item()}")
-            loss.backward()
-            for p in model.parameters():
-                if p.grad is not None:
-                    assert p.grad.device == device, "Gradient on wrong device"
-            optimizer.step()
-            total_loss += loss.item()
-            if cfg.verbose:
-                logger.debug("step %d loss %.4f", step, loss.item())
-        epoch_loss = total_loss / len(loader)
-        logger.info("epoch %d/%d | loss=%.4f", epoch + 1, max_epochs, epoch_loss)
-        if progress_cb:
-            progress_cb(epoch + 1, max_epochs, epoch_loss)
-        if stopper.step(epoch_loss):
-            logger.info("Early stopping triggered at epoch %d", epoch + 1)
-            break
-        scheduler.step()
-        save_checkpoint(ckpt_dir, epoch, model, optimizer, scheduler, epoch_loss)
-    torch.save(model.state_dict(), save_path)
-    logger.info("Model saved to models/current.pth")
-    logger.info("Training complete")
-    return save_path
+    finally:
+        try:
+            lock_file.unlink()
+        except Exception:
+            pass
 
 
 def infer(question: str, cfg: Config, model_path: Path | None = None) -> str:

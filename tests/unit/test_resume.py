@@ -8,12 +8,12 @@ def test_resume(tmp_path):
     cfg = Config(num_epochs=2, batch_size=2)
     train(Path('datas'), cfg, model_path=model_path, resume=True)
     meta = json.loads((model_path.parent / 'ckpts/current.meta.json').read_text())
-    loss_before = meta['last_loss']
+    loss_before = meta['loss']
     cfg.num_epochs = 3
     train(Path('datas'), cfg, model_path=model_path, resume=True)
     meta2 = json.loads((model_path.parent / 'ckpts/current.meta.json').read_text())
     assert meta2['last_epoch'] == 2
-    assert meta2['last_loss'] <= loss_before
+    assert meta2['loss'] <= loss_before
 
 def test_corrupt_meta(tmp_path):
     model_path = tmp_path / 'model.pth'

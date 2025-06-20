@@ -113,7 +113,7 @@ def save_checkpoint(
         "loss": loss,
     }
     torch.save(ckpt, ckpt_dir / f"ckpt_{epoch:04}.pt")
-    meta = {"last_epoch": epoch, "last_loss": loss}
+    meta = {"last_epoch": epoch, "loss": loss}
     (ckpt_dir / "current.meta.json").write_text(json.dumps(meta))
 
 

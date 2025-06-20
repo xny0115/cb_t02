@@ -12,7 +12,7 @@ def test_resume_training(tmp_path, caplog):
     svc.train(Path("datas"))
     assert meta.exists()
     m = json.load(open(meta))
-    assert m["epochs_done"] == 2
+    assert m["last_epoch"] == 1
     svc.update_config({"epochs": 4})
     caplog.set_level(logging.INFO)
     svc.train(Path("datas"))
