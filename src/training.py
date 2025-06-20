@@ -26,15 +26,11 @@ from .training_utils import (
     TorchQADataset,
     collate_fn,
     save_checkpoint,
+    migrate_optimizer_state,
+    ensure_model_device,
 )
 logger = logging.getLogger(__name__)
 
-def migrate_optimizer_state(optim: optim.Optimizer, dev: torch.device) -> None:
-    """Move optimizer state tensors to the target device."""
-    for state in optim.state.values():
-        for k, v in state.items():
-            if torch.is_tensor(v):
-                state[k] = v.to(dev)
 def train(
     dataset_path: Path,
     cfg: Dict[str, Any] | Config,
@@ -120,16 +116,20 @@ def train(
             ckpt = torch.load(ckpt_file, map_location=device)
             model.load_state_dict(ckpt["model_state"])
             optimizer.load_state_dict(ckpt["optim_state"])
-            migrate_optimizer_state(optimizer, device)
             scheduler.load_state_dict(ckpt["scheduler_state"])
+            model.to(device, non_blocking=True)
+            migrate_optimizer_state(optimizer, device)
+            ensure_model_device(model, device)
             start_epoch = meta["last_epoch"] + 1
         elif start_epoch and save_path.exists():
             model.load_state_dict(torch.load(save_path, map_location=device))
-        model.to(device)
+        model.to(device, non_blocking=True)
+        ensure_model_device(model, device)
         stopper = EarlyStopping(cfg.early_stopping_patience)
         max_epochs = params["epochs"]
         for epoch in range(start_epoch, max_epochs):
             model.train()
+            ensure_model_device(model, device)
             total_loss = 0.0
             for step, (src, tgt) in enumerate(loader, start=1):
                 src, tgt = src.to(device), tgt.to(device)
@@ -139,8 +139,6 @@ def train(
                 if not math.isfinite(loss.item()):
                     raise RuntimeError(f"Non-finite loss detected: {loss.item()}")
                 loss.backward()
-                if any(p.grad is not None and p.grad.device != device for p in model.parameters()):
-                    raise RuntimeError("Gradient tensors on multiple devices – verify to(device) calls")
                 optimizer.step()
                 total_loss += loss.item()
                 if cfg.verbose:

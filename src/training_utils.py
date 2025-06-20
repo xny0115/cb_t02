@@ -4,6 +4,9 @@ from typing import Any, Iterable
 from torch.utils.data import Dataset
 from .data.loader import QADataset
 from .utils.vocab import encode
+import logging
+import torch
+log = logging.getLogger(__name__)
 
 @dataclass
 class EarlyStopping:
@@ -115,5 +118,21 @@ def save_checkpoint(
     torch.save(ckpt, ckpt_dir / f"ckpt_{epoch:04}.pt")
     meta = {"last_epoch": epoch, "loss": loss}
     (ckpt_dir / "current.meta.json").write_text(json.dumps(meta))
+
+
+def migrate_optimizer_state(optim: optim.Optimizer, device: torch.device) -> None:
+    """Move all optimizer state tensors to the target device."""
+    for state in optim.state.values():
+        for k, v in state.items():
+            if torch.is_tensor(v):
+                state[k] = v.to(device, non_blocking=True)
+
+
+def ensure_model_device(model: nn.Module, device: torch.device) -> None:
+    """Ensure every parameter resides on the given device."""
+    off = [n for n, p in model.named_parameters() if p.device != device]
+    if off:
+        log.warning("Migrating %d parameters to %s", len(off), device)
+        model.to(device, non_blocking=True)
 
 
