@@ -30,6 +30,7 @@
             --color-danger: #8d4b4b;
             --color-danger-hover: #DC2626;
             --color-warning: #F59E0B;
+            --color-tip: #5f94d1;
             --color-info: #3b83f650;
 
             --border-radius-small: 4px;
@@ -455,6 +456,7 @@
         }
         .range-value { font-size: 0.9em; font-weight: 500; min-width: 40px; text-align: right; }
         .warning { display: block; margin-top: 6px; font-size: 0.75em; color: var(--color-warning); }
+        .tip { display: block; margin-top: 6px; font-size: 0.75em; color: var(--color-tip); }
 
         .action-buttons {
             margin-top: 32px; padding-top: 24px; display: flex; gap: 16px; flex-wrap: wrap;
@@ -578,27 +580,32 @@
                                 <option value="transformer_large">Transformer Large</option>
                                 <option value="custom">Custom (직접 설정)</option>
                             </select>
+                                <small class="tip">- 사용할 모델 구조를 선택합니다. (성능과 속도에 영향)</small>
                         </div>
                         <div class="setting-item">
                             <label for="epochInput">학습 에폭 수</label>
                             <input type="number" id="epochInput" min="1" max="1000" value="20" />
+                            <small class="tip">- 전체 학습 반복 횟수입니다. (높을수록 학습이 깊어짐)</small>
                         </div>
                         <div class="setting-item">
                             <label for="batchInput">배치 크기</label>
                             <input type="number" id="batchInput" min="8" max="12" value="8" />
-                            <small class="warning">메모리 부족(OOM) 시 값을 줄이세요.</small>
+                            <small class="tip">- 한 번에 학습에 사용하는 데이터 수입니다. (메모리 부족 시 줄이세요)</small>
                         </div>
                         <div class="setting-item">
                             <label for="lrInput">학습률</label>
                             <input type="number" id="lrInput" step="0.00001" min="0.000001" max="0.01" value="0.0001" />
+                            <small class="tip">- 모델이 얼마나 빠르게 학습할지를 결정합니다.</small>
                         </div>
                         <div class="setting-item">
                             <label for="warmupStepsInput">웜업 스텝</label>
                             <input type="number" id="warmupStepsInput" min="0" max="10000" value="1000" />
+                            <small class="tip">- 학습률을 천천히 증가시키는 초기 단계 수입니다.</small>
                         </div>
                         <div class="setting-item">
                             <label for="maxSeqLenInput">최대 시퀀스 길이</label>
                             <input type="number" id="maxSeqLenInput" min="32" max="512" step="16" value="128" />
+                            <small class="tip">- 한 문장에 허용되는 최대 토큰 수입니다.</small>
                         </div>
                     </div>
                 </div>
@@ -614,29 +621,35 @@
                         <div class="setting-item">
                             <label for="hiddenDimInput">모델 차원 (d_model)</label>
                             <input type="number" id="hiddenDimInput" min="128" max="1024" step="64" value="256" />
+                            <small class="tip">- 각 토큰이 표현되는 벡터 크기입니다.</small>
                         </div>
                         <div class="setting-item">
                             <label for="ffDimInput">피드포워드 신경망 차원 (d_ff)</label>
                             <input type="number" id="ffDimInput" min="512" max="4096" step="128" value="1024" />
+                            <small class="tip">- 내부 계산에서 사용되는 은닉층 크기입니다.</small>
                         </div>
                         <div class="setting-item">
                             <label for="numEncoderLayersInput">인코더 레이어 수</label>
                             <input type="number" id="numEncoderLayersInput" min="1" max="12" value="8" />
+                            <small class="tip">- 인코더 층의 개수입니다. (모델 깊이)</small>
                         </div>
                         <div class="setting-item">
                             <label for="numDecoderLayersInput">디코더 레이어 수</label>
                             <input type="number" id="numDecoderLayersInput" min="1" max="12" value="8" />
+                            <small class="tip">- 디코더 층의 개수입니다.</small>
                         </div>
                          <div class="setting-item">
                             <label for="numHeadsInput">어텐션 헤드 수</label>
                             <input type="number" id="numHeadsInput" min="1" max="16" value="8" />
+                            <small class="tip">- 병렬 attention 처리 수입니다. (성능과 계산량에 영향)</small>
                         </div>
                         <div class="setting-item">
-                            <label for="dropoutInput">드롭아웃 비율</label>
+                            <label for="dropoutInput">드롭아웃 비율</label>                            
                             <div class="slider-group">
                                 <input type="range" id="dropoutInput" min="0.0" max="0.5" step="0.05" value="0.1" />
                                 <span class="range-value" id="dropoutValue">0.10</span>
                             </div>
+                            <small class="tip">- 과적합 방지를 위한 무작위 비활성화 비율입니다.</small>
                         </div>
                     </div>
                 </div>
@@ -652,18 +665,22 @@
                         <div class="setting-item">
                             <label for="topkInput">Top-K 샘플링</label>
                             <input type="number" id="topkInput" min="1" max="100" value="10" />
+                            <small class="tip">- 확률 상위 K개 중에서만 단어를 선택합니다.</small>
                         </div>
                         <div class="setting-item">
                             <label for="tempInput">창의성 (Temperature)</label>
                             <input type="number" id="tempInput" step="0.1" min="0.1" max="2.0" value="0.7" />
+                            <small class="tip">- 누적 확률 P 이하의 후보들만 고려합니다.</small>
                         </div>
                         <div class="setting-item">
                             <label for="topPInput">Top-P 누적확률</label>
                             <input type="number" id="topPInput" step="0.05" min="0.1" max="1" value="0.9" />
+                            <small class="tip">- 값이 클수록 더 다양하고 창의적인 답변이 생성됩니다.</small>
                         </div>
                         <div class="setting-item">
                             <label for="noRepeatInput">N-gram 반복 금지</label>
                             <input type="number" id="noRepeatInput" min="1" max="5" value="2" />
+                            <small class="tip">- 같은 구문이 반복되지 않도록 제한합니다.</small>
                         </div>
                      </div>
                 </div>
