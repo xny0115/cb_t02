@@ -11,15 +11,15 @@ function appendChat(role,text,latency=0){
   const divMsg = window.document.createElement('div');
   divMsg.className = role==='USER'?'user-msg':'bot-msg';
   divMsg.textContent = text;
-  const meta = window.document.createElement('span');
-  meta.className='meta';
-  meta.textContent=new Date().toLocaleTimeString()+ ' · '+ latency+' ms';
-  divMsg.appendChild(meta);
+  const meta1 = window.document.createElement('span');
+  meta1.className='meta';
+  meta1.textContent=new Date().toLocaleTimeString()+ ' · '+ latency+' ms';
+  divMsg.appendChild(meta1);
   box.appendChild(divMsg);
-  const meta = window.document.createElement('span');
-  meta.className='meta';
-  meta.textContent=new Date().toLocaleTimeString()+ ' · '+ latency+' ms';
-  divMsg.appendChild(meta);
+  const meta2 = window.document.createElement('span');
+  meta2.className='meta';
+  meta2.textContent=new Date().toLocaleTimeString()+ ' · '+ latency+' ms';
+  divMsg.appendChild(meta2);
   box.appendChild(divMsg);
 }
 appendChat('USER','x');

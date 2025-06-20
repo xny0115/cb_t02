@@ -28,13 +28,13 @@ from .training_utils import (
     save_checkpoint,
 )
 logger = logging.getLogger(__name__)
-def _to_device_state(opt_state: Dict[str, Dict[str, torch.Tensor]], device: torch.device) -> Dict[str, Dict[str, torch.Tensor]]:
-    """Move optimizer state tensors to target device."""
-    for state in opt_state.values():
+
+def migrate_optimizer_state(optim: optim.Optimizer, dev: torch.device) -> None:
+    """Move optimizer state tensors to the target device."""
+    for state in optim.state.values():
         for k, v in state.items():
             if torch.is_tensor(v):
-                state[k] = v.to(device)
-    return opt_state
+                state[k] = v.to(dev)
 def train(
     dataset_path: Path,
     cfg: Dict[str, Any] | Config,
@@ -46,11 +46,9 @@ def train(
     device: torch.device | None = None,
 ) -> Path:
     """Train model using dataset and configuration."""
-    lock_file = Path('.training.lock')
-    if lock_file.exists():
-        raise RuntimeError('training already running')
-    lock_file.write_text('1')
-    try:
+    from .utils.fs_lock import pid_lock
+
+    with pid_lock(Path('.training.lock')):
         if not isinstance(cfg, Config):
             cfg = to_config(cfg)
         assert isinstance(cfg.num_epochs, int) and cfg.num_epochs > 0, "epochs must be int"
@@ -64,25 +62,34 @@ def train(
         if device is None:
             device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         else:
-            device = torch.device(device)
+            device = torch.device(
+                "cuda" if str(device) == "cuda" and torch.cuda.is_available() else "cpu"
+            )
+        meta_file = meta_path or ckpt_dir / "current.meta.json"
         if not torch.cuda.is_available():
+            if resume and meta_file.exists():
+                try:
+                    json.load(open(meta_file))
+                except Exception as exc:
+                    raise SystemExit(f"checkpoint load failed: {exc}")
             vocab = build_vocab(ds)
             model = Seq2SeqTransformer(vocab_size=len(vocab))
             if start_epoch and save_path.exists():
                 model.load_state_dict(torch.load(save_path, map_location="cpu"))
             torch.save(model.state_dict(), save_path)
+            meta_file.parent.mkdir(parents=True, exist_ok=True)
             for e in range(start_epoch, cfg.num_epochs):
                 if progress_cb:
                     progress_cb(e + 1, cfg.num_epochs, 0.0)
                 logger.info("epoch %d/%d | loss=0.0000", e + 1, cfg.num_epochs)
-                if meta_path:
-                    json.dump(
-                        {
-                            "epochs_done": e + 1,
-                            "update_time": datetime.utcnow().isoformat(),
-                        },
-                        open(meta_path, "w"),
-                    )
+                json.dump(
+                    {
+                        "last_epoch": e,
+                        "loss": 0.0,
+                        "update_time": datetime.utcnow().isoformat(),
+                    },
+                    open(meta_file, "w"),
+                )
             logger.info("Training complete (dummy)")
             return save_path
         logger.info("Training started...")
@@ -104,12 +111,16 @@ def train(
         criterion = nn.CrossEntropyLoss(ignore_index=0)
         optimizer = optim.Adam(model.parameters(), lr=params["learning_rate"])
         scheduler = optim.lr_scheduler.StepLR(optimizer, 1)
-        if meta_path and meta_path.exists() and resume:
-            meta = json.load(open(meta_path))
+        if meta_file.exists() and resume:
+            try:
+                meta = json.load(open(meta_file))
+            except Exception as exc:
+                raise SystemExit(f"checkpoint load failed: {exc}")
             ckpt_file = ckpt_dir / f"ckpt_{meta['last_epoch']:04}.pt"
             ckpt = torch.load(ckpt_file, map_location=device)
             model.load_state_dict(ckpt["model_state"])
-            optimizer.load_state_dict(_to_device_state(ckpt["optim_state"], device))
+            optimizer.load_state_dict(ckpt["optim_state"])
+            migrate_optimizer_state(optimizer, device)
             scheduler.load_state_dict(ckpt["scheduler_state"])
             start_epoch = meta["last_epoch"] + 1
         elif start_epoch and save_path.exists():
@@ -128,9 +139,8 @@ def train(
                 if not math.isfinite(loss.item()):
                     raise RuntimeError(f"Non-finite loss detected: {loss.item()}")
                 loss.backward()
-                for p in model.parameters():
-                    if p.grad is not None:
-                        assert p.grad.device == device, "Gradient on wrong device"
+                if any(p.grad is not None and p.grad.device != device for p in model.parameters()):
+                    raise RuntimeError("Gradient tensors on multiple devices – verify to(device) calls")
                 optimizer.step()
                 total_loss += loss.item()
                 if cfg.verbose:
@@ -148,11 +158,6 @@ def train(
         logger.info("Model saved to models/current.pth")
         logger.info("Training complete")
         return save_path
-    finally:
-        try:
-            lock_file.unlink()
-        except Exception:
-            pass
 
 
 def infer(question: str, cfg: Config, model_path: Path | None = None) -> str:
@@ -193,11 +198,14 @@ def main() -> None:
     p.add_argument("--data-dir", default="datas")
     p.add_argument("--no-resume", action="store_true")
     p.add_argument("--device", default="cuda", choices=["cuda", "cpu"])
+    p.add_argument("--epochs", type=int, default=None)
     args = p.parse_args()
     cfg = Config()
     try:
+        if args.epochs:
+            cfg.num_epochs = args.epochs
         device = torch.device(
-            "cuda" if torch.cuda.is_available() and args.device != "cpu" else "cpu"
+            "cuda" if args.device == "cuda" and torch.cuda.is_available() else "cpu"
         )
         train(Path(args.data_dir), cfg, resume=not args.no_resume, device=device)
     except Exception as exc:  # pragma: no cover - CLI
