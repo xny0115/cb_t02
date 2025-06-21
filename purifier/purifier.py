@@ -62,9 +62,14 @@ def _parse_raw(path: Path) -> List[RawPair]:
     return pairs
 
 
+def _sanitize_name(name: str) -> str:
+    """Return ``name`` stripped of surrounding quotes."""
+    return name.strip('"').strip("'")
+
+
 def _domain_from_name(name: str) -> str:
     """Infer domain string from file name."""
-    parts = name.split("_")
+    parts = _sanitize_name(name).split("_")
     if len(parts) > 1:
         return parts[1]
     return parts[0]
@@ -74,7 +79,8 @@ def clean_file(src: Path, dst_dir: Path) -> Path:
     """Convert ``src`` raw dataset file to cleaned JSON under ``dst_dir``."""
     raw_pairs = _parse_raw(src)
     cleaned: List[CleanPair] = []
-    domain = _domain_from_name(src.stem)
+    base = _sanitize_name(src.stem)
+    domain = _domain_from_name(base)
     for pair in raw_pairs:
         tok_q = analyze(pair.question)
         tok_a = analyze(pair.answer)
@@ -87,10 +93,10 @@ def clean_file(src: Path, dst_dir: Path) -> Path:
                 domain=domain,
             )
         )
-    dst_path = dst_dir / src.with_suffix(".json").name
+    dst_path = dst_dir / f"{base}.json"
     with open(dst_path, "w", encoding="utf-8") as f:
         json.dump([c.__dict__ for c in cleaned], f, ensure_ascii=False, indent=2)
-    _write_log(dst_dir / src.with_suffix(".txt").name, raw_pairs)
+    _write_log(dst_dir / f"{base}.txt", raw_pairs)
     return dst_path
 
 
