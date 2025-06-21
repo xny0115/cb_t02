@@ -5,6 +5,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Iterable
 
+from ..data.morph import analyze, to_str
+
 import torch
 
 from ..data.loader import QADataset
@@ -22,9 +24,10 @@ def build_vocab(dataset: QADataset) -> dict[str, int]:
     return vocab
 
 
-def encode(text: str, vocab: dict[str, int]):
-    """Convert text to tensor of token ids."""
-    ids = [vocab.get(t, 0) for t in text.split()] + [vocab["<eos>"]]
+def encode(text: str, vocab: dict[str, int]) -> torch.Tensor:
+    """Convert raw text to tensor ids using morphological analysis."""
+    morph_tokens = to_str(analyze(text)).split()
+    ids = [vocab.get(t, 0) for t in morph_tokens] + [vocab["<eos>"]]
     return torch.tensor(ids, dtype=torch.long)
 
 
