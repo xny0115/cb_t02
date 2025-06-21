@@ -10,7 +10,13 @@ from purifier.purifier import clean_file
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Dataset purifier")
-    parser.add_argument("src", type=Path, help="raw dataset file or directory")
+    parser.add_argument(
+        "src",
+        type=Path,
+        nargs="?",
+        default=Path("datas_raw"),
+        help="raw dataset file or directory",
+    )
     parser.add_argument("dst", type=Path, nargs="?", default=Path("datas"), help="output directory")
     args = parser.parse_args()
 
