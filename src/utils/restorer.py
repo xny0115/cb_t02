@@ -4,6 +4,25 @@ from __future__ import annotations
 
 from typing import Dict, List
 
+TEMPLATES: Dict[str, List[Dict[str, List[str] | str]]] = {
+    "음식": [
+        {"condition": ["단백질", "고기"], "template": "{X}에는 단백질이 많아"},
+        {"condition": ["채식"], "template": "{X}는 채식 메뉴야"},
+    ],
+    "여행": [
+        {"condition": ["휴양"], "template": "{X}에서 휴양을 즐길 수 있어"},
+    ],
+    "건강": [
+        {"condition": ["운동"], "template": "{X}는 운동에 도움이 돼"},
+    ],
+    "기술": [
+        {"condition": ["인공지능"], "template": "{X}에 인공지능이 적용돼"},
+    ],
+    "문화": [
+        {"condition": ["역사"], "template": "{X}는 역사적 의미가 있어"},
+    ],
+}
+
 
 def _has_batchim(word: str) -> bool:
     """Return True if ``word`` ends with a final consonant."""
@@ -41,4 +60,17 @@ def restore_sentence(tokens: List[Dict[str, str]]) -> str:
     return " ".join(words)
 
 
-__all__ = ["restore_sentence"]
+def restore_with_template(
+    tokens: List[Dict[str, str]], concepts: List[str], domain: str
+) -> str:
+    """Return a sentence assembled using domain templates."""
+
+    first_nng = next((t.get("lemma", "") for t in tokens if t.get("pos") == "NNG"), "")
+    for item in TEMPLATES.get(domain, []):
+        cond = set(item.get("condition", []))
+        if cond & set(concepts):
+            return item["template"].format(X=first_nng)
+    return "적절한 문장을 찾을 수 없습니다."
+
+
+__all__ = ["restore_sentence", "restore_with_template"]
