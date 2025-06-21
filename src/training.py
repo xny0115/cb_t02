@@ -17,7 +17,7 @@ from datetime import datetime
 from .config import Config
 from .service.utils import to_config
 from .data.loader import QADataset
-from .utils.vocab import build_vocab, encode
+from .utils.vocab import build_vocab, encode_tokens, encode
 from .model.transformer import Seq2SeqTransformer
 from .tuning.auto import AutoTuner
 
@@ -55,10 +55,12 @@ class TorchQADataset(Dataset):
         return len(self.data)
 
     def __getitem__(self, idx: int):
-        q, a = self.data[idx]
-        if not q or not a:
+        pair = self.data.pairs[idx]
+        if not pair.tokens_q or not pair.tokens_a:
             raise ValueError("invalid pair")
-        return encode(q, self.vocab), encode(a, self.vocab)
+        q = encode_tokens(pair.tokens_q, pair.concepts, pair.domain, self.vocab)
+        a = encode_tokens(pair.tokens_a, pair.concepts, pair.domain, self.vocab)
+        return q, a
 
 
 def collate_fn(batch: Iterable[tuple[Any, Any]]):
