@@ -8,6 +8,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, List, Tuple
 
+from .morph import analyze, to_str
+
 logger = logging.getLogger(__name__)
 
 
@@ -93,12 +95,16 @@ class QADataset:
             with open(file_path, "r", encoding="utf-8") as f:
                 data = json.load(f)
             for item in data:
+                q_text = item["question"]["text"]
+                a_text = item["answer"]["text"]
+                q_tokens = item["question"].get("tokens") or analyze(q_text)
+                a_tokens = item["answer"].get("tokens") or analyze(a_text)
                 self.pairs.append(
                     QAPair(
-                        question=item["question"]["text"],
-                        answer=item["answer"]["text"],
-                        tokens_q=item["question"].get("tokens", []),
-                        tokens_a=item["answer"].get("tokens", []),
+                        question=q_text,
+                        answer=a_text,
+                        tokens_q=q_tokens,
+                        tokens_a=a_tokens,
                         concepts=item.get("concepts", []),
                         domain=item.get("domain", ""),
                     )
@@ -137,4 +143,6 @@ class QADataset:
 
     def __getitem__(self, idx: int) -> Tuple[str, str]:
         pair = self.pairs[idx]
-        return pair.question, pair.answer
+        q = to_str(pair.tokens_q) if pair.tokens_q else to_str(analyze(pair.question))
+        a = to_str(pair.tokens_a) if pair.tokens_a else to_str(analyze(pair.answer))
+        return q, a
