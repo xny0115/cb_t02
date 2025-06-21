@@ -193,7 +193,7 @@ class ChatbotService:
             logger.info("Device selected: %s", device)
             if hasattr(self._model, "to"):
                 self._model.to(device).eval()
-            tokens = self._tokenizer.encode(text).unsqueeze(1).to(device)
+            tokens = self._tokenizer.encode(text).unsqueeze(0).to(device)
             cfg = self._config
             temperature = float(cfg.get("temperature", 0.8))
             top_k = int(cfg.get("top_k", 50))

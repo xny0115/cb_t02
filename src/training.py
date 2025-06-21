@@ -63,8 +63,8 @@ class TorchQADataset(Dataset):
 
 def collate_fn(batch: Iterable[tuple[Any, Any]]):
     qs, as_ = zip(*batch)
-    qs = nn.utils.rnn.pad_sequence(qs, padding_value=0)
-    as_ = nn.utils.rnn.pad_sequence(as_, padding_value=0)
+    qs = nn.utils.rnn.pad_sequence(qs, batch_first=True, padding_value=0)
+    as_ = nn.utils.rnn.pad_sequence(as_, batch_first=True, padding_value=0)
     return qs, as_
 
 
@@ -143,8 +143,8 @@ def train(
         for step, (src, tgt) in enumerate(loader, start=1):
             src, tgt = src.to(device), tgt.to(device)
             optimizer.zero_grad()
-            output = model(src, tgt[:-1, :])
-            loss = criterion(output.reshape(-1, len(vocab)), tgt[1:, :].reshape(-1))
+            output = model(src, tgt[:, :-1])
+            loss = criterion(output.reshape(-1, len(vocab)), tgt[:, 1:].reshape(-1))
             loss.backward()
             optimizer.step()
             total_loss += loss.item()
@@ -185,15 +185,15 @@ def infer(question: str, cfg: Config, model_path: Path | None = None) -> str:
     model.load_state_dict(torch.load(model_path, map_location="cpu"))
     model.eval()
 
-    ids = encode(question, vocab).unsqueeze(1)
+    ids = encode(question, vocab).unsqueeze(0)
     device = next(model.parameters()).device
     ids = ids.to(device)
     tgt = torch.tensor([[vocab["<eos>"]]], dtype=torch.long, device=device)
     for _ in range(cfg.max_sequence_length):
         out = model(ids, tgt)
-        prob = out[-1, 0]
+        prob = out[:, -1, :][0]
         token = int(prob.argmax())
-        tgt = torch.cat([tgt, torch.tensor([[token]], device=device)])
+        tgt = torch.cat([tgt, torch.tensor([[token]], device=device)], dim=1)
         if token == vocab["<eos>"]:
             break
     words = [k for k, v in vocab.items() if v not in (0, 1)]

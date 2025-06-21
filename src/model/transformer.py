@@ -37,12 +37,12 @@ class Seq2SeqTransformer(nn.Module):
             num_decoder_layers=num_decoder_layers,
             dim_feedforward=dim_ff,
             dropout=dropout,
+            batch_first=True,
         )
         self.fc_out = nn.Linear(embed_dim, vocab_size)
 
-    def forward(
-        self, src: torch.Tensor, tgt: torch.Tensor
-    ) -> torch.Tensor:
+    def forward(self, src: torch.Tensor, tgt: torch.Tensor) -> torch.Tensor:
+        """Run full transformer forward pass."""
         src = self.embed(src) * math.sqrt(self.embed.embedding_dim)
         tgt = self.embed(tgt) * math.sqrt(self.embed.embedding_dim)
         src = self.pos_encoder(src)
@@ -67,8 +67,9 @@ class Seq2SeqTransformer(nn.Module):
         ys = torch.tensor([[eos_id]], device=device)
         ngrams: set[tuple[int, ...]] = set()
         for step in range(max_new_tokens):
-            out = self(src, ys)[-1, 0] / temperature
-            if no_repeat_ngram > 1 and ys.size(0) >= no_repeat_ngram:
+            out = self(src, ys)[:, -1, :] / temperature
+            out = out.squeeze(0)
+            if no_repeat_ngram > 1 and ys.size(1) >= no_repeat_ngram:
                 prefix = ys[0, -no_repeat_ngram + 1 :].tolist()
                 banned = [w for w in range(out.size(0)) if tuple(prefix + [w]) in ngrams]
                 if banned:
@@ -93,8 +94,8 @@ class Seq2SeqTransformer(nn.Module):
             else:
                 choice = torch.multinomial(prob, 1).item()
                 next_id = topk_idx[choice].view(1, 1)
-            ys = torch.cat([ys, next_id], dim=0)
-            if no_repeat_ngram > 1 and ys.size(0) >= no_repeat_ngram:
+            ys = torch.cat([ys, next_id], dim=1)
+            if no_repeat_ngram > 1 and ys.size(1) >= no_repeat_ngram:
                 ngrams.add(tuple(ys[0, -no_repeat_ngram:].tolist()))
             if next_id.item() == eos_id:
                 break
@@ -119,5 +120,7 @@ class PositionalEncoding(nn.Module):
         self.register_buffer("pe", pe)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        x = x + self.pe[: x.size(0)]
-        return self.dropout(x)
+        """Add positional encoding to tensor."""
+        if x.dim() != 3:
+            raise ValueError("positional encoding expects 3D input")
+        return self.dropout(x + self.pe[: x.size(1)].transpose(0, 1))
